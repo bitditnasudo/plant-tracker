@@ -5,3 +5,5 @@ dist
 .vercel
 *.log
 plantview.pdf
+.vercel
+.env*

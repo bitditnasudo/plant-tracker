@@ -19,6 +19,33 @@ function bearingInfo(facingDeg, northDeg, lat = 20) {
   return { name, light }
 }
 
+// facing/length details for a window segment
+function windowInfo(w, northDeg, lat, metersPerUnit) {
+  const dx = w.x1 - w.x0
+  const dy = w.y1 - w.y0
+  const alongUp = Math.atan2(dx, -dy) * 180 / Math.PI     // segment angle, clockwise from plan-up
+  const facing = ((alongUp + 90 * (w.facingSign || 1)) % 360 + 360) % 360
+  const len = Math.hypot(dx, dy)
+  return {
+    ...bearingInfo(facing, northDeg, lat),
+    lenLabel: metersPerUnit ? `${(len * metersPerUnit).toFixed(2)} m` : null,
+  }
+}
+
+// screen-space geometry for rendering a window segment
+function segMeta(w, view, metersPerUnit) {
+  const dx = w.x1 - w.x0
+  const dy = w.y1 - w.y0
+  const thick = metersPerUnit ? 0.22 / metersPerUnit : 10 // ~wall depth, in plan units
+  return {
+    midX: ((w.x0 + w.x1) / 2) * view.s + view.tx,
+    midY: ((w.y0 + w.y1) / 2) * view.s + view.ty,
+    wPx: Math.max(8, Math.hypot(dx, dy) * view.s),
+    hPx: Math.max(5, thick * view.s),
+    angle: Math.atan2(dy, dx) * 180 / Math.PI,
+  }
+}
+
 export default function PlanView() {
   const {
     state, planImage, icons, savePlanImage, clearPlan, setPlan, updatePlant,
@@ -34,6 +61,9 @@ export default function PlanView() {
   const [calPoints, setCalPoints] = useState([])
   const [measure, setMeasure] = useState(null) // meters shown after 2 points
   const [zoneDraft, setZoneDraft] = useState(null)
+  const [winDraft, setWinDraft] = useState(null)   // window being drawn
+  const [winInfo, setWinInfo] = useState(null)     // tapped-window info (view mode)
+  const winInfoTimer = useRef(null)
   const [zoneSheet, setZoneSheet] = useState(null)  // rect awaiting name/light
   const [scaleSheet, setScaleSheet] = useState(null) // {pixels}
   const [northSheet, setNorthSheet] = useState(false)
@@ -104,6 +134,10 @@ export default function PlanView() {
       const pt = toPlan(e.clientX, e.clientY)
       gesture.current = { type: 'zone', x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y }
       setZoneDraft({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
+    } else if (mode === 'window') {
+      const pt = toPlan(e.clientX, e.clientY)
+      gesture.current = { type: 'windraw', x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y }
+      setWinDraft({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y })
     } else {
       gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, startView: view, moved: false }
     }
@@ -132,6 +166,11 @@ export default function PlanView() {
       g.x1 = pt.x
       g.y1 = pt.y
       setZoneDraft({ x0: g.x0, y0: g.y0, x1: pt.x, y1: pt.y })
+    } else if (g.type === 'windraw') {
+      const pt = toPlan(e.clientX, e.clientY)
+      g.x1 = pt.x
+      g.y1 = pt.y
+      setWinDraft({ x0: g.x0, y0: g.y0, x1: pt.x, y1: pt.y })
     }
   }
 
@@ -146,6 +185,20 @@ export default function PlanView() {
       setZoneDraft(null)
       return
     }
+    if (g.type === 'windraw') {
+      gesture.current = null
+      setWinDraft(null)
+      let { x0, y0, x1, y1 } = g
+      if (Math.hypot(x1 - x0, y1 - y0) * view.s >= 12) {
+        // snap near-horizontal / near-vertical windows onto the wall axis
+        const deg = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI
+        const mod = ((deg % 180) + 180) % 180
+        if (mod < 8 || mod > 172) y1 = y0
+        else if (Math.abs(mod - 90) < 8) x1 = x0
+        setPlan({ windows: [...plan.windows, { id: crypto.randomUUID(), x0, y0, x1, y1, facingSign: 1 }] })
+      }
+      return
+    }
     if (g.type === 'pan' && !g.moved) {
       const pt = toPlan(e.clientX, e.clientY)
       handleTap(pt)
@@ -158,8 +211,6 @@ export default function PlanView() {
       placePlant(placingId, pt)
       setPlacingId(null)
       setMode('view')
-    } else if (mode === 'window') {
-      setPlan({ windows: [...plan.windows, { id: crypto.randomUUID(), x: pt.x, y: pt.y, facingDeg: 0 }] })
     } else if (mode === 'measure') {
       setMeasure(null)
       setCalPoints(prev => {
@@ -173,6 +224,7 @@ export default function PlanView() {
       })
     } else {
       setJiggleId(null)
+      setWinInfo(null)
     }
   }
 
@@ -220,14 +272,43 @@ export default function PlanView() {
     }
   }
 
-  /* ── windows / zones taps ── */
-  const windowTap = (e, w) => {
+  /* ── window segments: drag to move, tap to flip facing ── */
+  const winDown = (e, w) => {
     e.stopPropagation()
     if (mode === 'erase') {
       setPlan({ windows: plan.windows.filter(x => x.id !== w.id) })
-    } else if (mode === 'window' || mode === 'view') {
-      setPlan({ windows: plan.windows.map(x => x.id === w.id ? { ...x, facingDeg: (x.facingDeg + 45) % 360 } : x) })
+      return
     }
+    if (mode === 'view') {
+      const info = windowInfo(w, plan.northDeg, lat, plan.metersPerUnit)
+      setWinInfo(`Window${info.lenLabel ? ` (${info.lenLabel})` : ''} faces ${info.name} — ${info.light}`)
+      clearTimeout(winInfoTimer.current)
+      winInfoTimer.current = setTimeout(() => setWinInfo(null), 3500)
+      return
+    }
+    if (mode !== 'window') return
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* already released */ }
+    e.currentTarget._wg = { startX: e.clientX, startY: e.clientY, orig: { ...w }, moved: false }
+  }
+  const winMove = (e, w) => {
+    const g = e.currentTarget._wg
+    if (!g) return
+    if (Math.abs(e.clientX - g.startX) + Math.abs(e.clientY - g.startY) > 6) g.moved = true
+    if (!g.moved) return
+    const dx = (e.clientX - g.startX) / view.s
+    const dy = (e.clientY - g.startY) / view.s
+    setPlan({
+      windows: plan.windows.map(x => x.id === w.id
+        ? { ...x, x0: g.orig.x0 + dx, y0: g.orig.y0 + dy, x1: g.orig.x1 + dx, y1: g.orig.y1 + dy }
+        : x),
+    })
+  }
+  const winUp = (e, w) => {
+    const g = e.currentTarget._wg
+    e.currentTarget._wg = null
+    if (!g || g.moved) return
+    // simple tap: flip which side of the wall the window faces
+    setPlan({ windows: plan.windows.map(x => x.id === w.id ? { ...x, facingSign: -(x.facingSign || 1) } : x) })
   }
 
   /* ── upload ── */
@@ -254,7 +335,13 @@ export default function PlanView() {
       const cat = getCatalogPlant(state.plants.find(p => p.id === placingId)?.catalogId)
       return `Tap the plan where your ${cat?.name || 'plant'} lives`
     }
-    if (mode === 'window') return 'Tap a wall to add a window · tap a window to rotate its facing'
+    if (mode === 'window') {
+      if (winDraft && plan.metersPerUnit) {
+        const len = Math.hypot(winDraft.x1 - winDraft.x0, winDraft.y1 - winDraft.y0) * plan.metersPerUnit
+        return `Window: ${len.toFixed(2)} m`
+      }
+      return 'Drag along a wall to draw a window · drag one to move it · tap it to flip its facing'
+    }
     if (mode === 'zone') return 'Drag a rectangle over a room to set its light'
     if (mode === 'measure') {
       if (measure) return `Distance: ${measure >= 1 ? measure.toFixed(2) + ' m' : (measure * 100).toFixed(0) + ' cm'}`
@@ -263,8 +350,8 @@ export default function PlanView() {
     }
     if (mode === 'erase') return 'Tap a plant, window or zone to remove it from the plan'
     if (jiggleId) return 'Drag the shaking plant to move it · tap elsewhere when done'
-    return null
-  }, [mode, placingId, jiggleId, calPoints, measure, plan.metersPerUnit, state.plants])
+    return winInfo
+  }, [mode, placingId, jiggleId, calPoints, measure, plan.metersPerUnit, state.plants, winDraft, winInfo])
 
   const toggleMode = m => {
     setMode(cur => (cur === m ? 'view' : m))
@@ -367,20 +454,37 @@ export default function PlanView() {
           return <div className="zone-rect partial" style={{ left: r.x * view.s + view.tx, top: r.y * view.s + view.ty, width: r.w * view.s, height: r.h * view.s }} />
         })()}
 
-        {/* windows */}
+        {/* windows: wall segments drawn at real size (scale with the plan) */}
         {plan.windows.map(w => {
-          const info = bearingInfo(w.facingDeg, plan.northDeg, lat)
+          const seg = segMeta(w, view, plan.metersPerUnit)
+          const info = windowInfo(w, plan.northDeg, lat, plan.metersPerUnit)
+          const sign = w.facingSign || 1
           return (
             <div
-              key={w.id} className="window-marker" title={`Faces ${info.name} — ${info.light}`}
-              style={{ left: w.x * view.s + view.tx, top: w.y * view.s + view.ty, rotate: `${w.facingDeg}deg` }}
-              onPointerDown={e => e.stopPropagation()}
-              onClick={e => windowTap(e, w)}
+              key={w.id} className="window-marker"
+              title={`Faces ${info.name} — ${info.light}`}
+              style={{
+                left: seg.midX, top: seg.midY, width: seg.wPx, height: seg.hPx,
+                transform: `translate(-50%, -50%) rotate(${seg.angle}deg)`,
+              }}
+              onPointerDown={e => winDown(e, w)}
+              onPointerMove={e => winMove(e, w)}
+              onPointerUp={e => winUp(e, w)}
+              onPointerCancel={e => winUp(e, w)}
             >
-              <span className="facing" />
+              <span className="facing" style={sign === 1 ? { bottom: -10, rotate: '180deg' } : { top: -10 }} />
             </div>
           )
         })}
+        {winDraft && (() => {
+          const seg = segMeta(winDraft, view, plan.metersPerUnit)
+          return (
+            <div className="window-marker draft" style={{
+              left: seg.midX, top: seg.midY, width: seg.wPx, height: seg.hPx,
+              transform: `translate(-50%, -50%) rotate(${seg.angle}deg)`,
+            }} />
+          )
+        })()}
 
         {/* calibration dots */}
         {calPoints.map((p, i) => (

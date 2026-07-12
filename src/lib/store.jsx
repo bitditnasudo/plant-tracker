@@ -16,6 +16,24 @@ const SYNC_META_KEY = 'plant-tracker:sync' // {fileId, savedAt of last pushed/ap
 const loadSyncMeta = () => { try { return JSON.parse(localStorage.getItem(SYNC_META_KEY)) || {} } catch { return {} } }
 const saveSyncMeta = m => localStorage.setItem(SYNC_META_KEY, JSON.stringify(m))
 
+// v1 windows were tap-points {x, y, facingDeg}; they're now wall segments
+// {x0, y0, x1, y1, facingSign}. Convert old data (local or synced).
+function migratePlan(plan) {
+  if (!plan?.windows?.length) return plan
+  return {
+    ...plan,
+    windows: plan.windows.map(w => {
+      if (w.x1 !== undefined) return w
+      const half = plan.metersPerUnit ? 0.6 / plan.metersPerUnit : 30
+      return {
+        id: w.id,
+        x0: w.x - half, y0: w.y, x1: w.x + half, y1: w.y,
+        facingSign: (w.facingDeg > 90 && w.facingDeg < 270) ? 1 : -1,
+      }
+    }),
+  }
+}
+
 // keys can be baked in via .env.local (VITE_GEMINI_KEY / VITE_PERENUAL_KEY);
 // the Account fields override them when filled
 const ENV_GEMINI = import.meta.env.VITE_GEMINI_KEY || ''
@@ -55,7 +73,7 @@ function loadState() {
       ...DEFAULT_STATE, ...parsed,
       profile: { ...DEFAULT_STATE.profile, ...parsed.profile },
       settings,
-      plan: { ...DEFAULT_STATE.plan, ...parsed.plan },
+      plan: migratePlan({ ...DEFAULT_STATE.plan, ...parsed.plan }),
     }
   } catch {
     return DEFAULT_STATE
@@ -148,7 +166,7 @@ export function StoreProvider({ children }) {
       ...DEFAULT_STATE, ...data.state,
       profile: { ...DEFAULT_STATE.profile, ...data.state.profile },
       settings: { ...DEFAULT_STATE.settings, ...data.state.settings },
-      plan: { ...DEFAULT_STATE.plan, ...data.state.plan },
+      plan: migratePlan({ ...DEFAULT_STATE.plan, ...data.state.plan }),
     })
     setCustomCatalog(data.state.customCatalog || [])
     if (data.blobs?.planImage) {

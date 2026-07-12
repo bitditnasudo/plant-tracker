@@ -328,16 +328,19 @@ h1, h2, h3 { font-family: var(--font-display); }
   position: absolute; top: -12px; right: -14px; transform: none;
 }
 
+/* window = wall segment drawn at real size; position/size set inline */
 .window-marker {
-  position: absolute; transform: translate(-50%, -50%);
-  width: 30px; height: 12px; border-radius: 4px;
-  background: var(--blue); border: 2px solid #fff;
-  box-shadow: 0 2px 6px rgba(27, 67, 50, .3); cursor: pointer;
+  position: absolute; border-radius: 3px;
+  background: var(--blue); border: 1.5px solid #fff;
+  box-shadow: 0 2px 6px rgba(27, 67, 50, .3);
+  cursor: grab; touch-action: none;
 }
+.window-marker.draft { opacity: .65; border-style: dashed; pointer-events: none; }
 .window-marker .facing {
-  position: absolute; left: 50%; top: -12px; transform: translateX(-50%);
+  position: absolute; left: 50%; transform: translateX(-50%);
   width: 0; height: 0; border: 6px solid transparent; border-bottom: none;
   border-top: 9px solid var(--amber);
+  pointer-events: none;
 }
 
 .zone-rect {
