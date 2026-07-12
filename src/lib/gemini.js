@@ -7,17 +7,17 @@ import { idbSet } from './idb.js'
 // Newest image model first; falls back if the key's plan doesn't include it.
 const MODELS = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image']
 
-// Adapted from the user's prompt template: image references replaced with
-// inline style descriptions since the API call sends no reference images.
+// Adapted from the user's prompt template. No glass panel in the image itself:
+// the app's plant tile already provides the frosted rounded-square panel, so a
+// panel inside the render would double-frame the icon and shrink the plant.
 export function buildIconPrompt({ name, details, pot, potColor }) {
-  return `A single, centralized, stylized matte 3D render icon of ${name} with ${details} in a ${pot} of ${potColor} color. ` +
-    `The plant is contained within a semi-translucent, rounded-square frosted glass panel with a soft inner glow. ` +
-    `The glass panel fills the entire image edge to edge, set against a plain, soft green-to-white gradient backdrop. ` +
-    `Nothing else is in the image: no decorative corner shapes, no dark green organic blobs, no frames, no borders, ` +
-    `no ornaments, no background objects — only the glass panel with the potted plant inside it. ` +
+  return `A single, centralized, stylized matte 3D render of ${name} with ${details} in a ${pot} of ${potColor} color. ` +
+    `The potted plant fills most of the frame, set against a plain, soft green-to-white gradient background. ` +
+    `Nothing else is in the image: no glass panel, no frame, no border, no decorative shapes, no ornaments, ` +
+    `no background objects — only the potted plant. ` +
     `The texture is friendly, tactile, and clean, like soft clay, with a soft-focus depth of field. ` +
     `Color palette: olive green #40916C, mint green #74C69D, pale beige-green #D8F3DC, deep forest green #1B4332, white #FFFFFF. ` +
-    `Square image, the plant fills most of the panel, no text.`
+    `Square image, no text.`
 }
 
 export async function generatePlantIcon(apiKey, promptFields) {

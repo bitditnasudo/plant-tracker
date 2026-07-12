@@ -14,8 +14,8 @@
   --glass:     rgba(255, 255, 255, 0.45);
   --border:    rgba(27, 67, 50, 0.10);
   --text:      #1B4332;
-  --muted:     #6B8F7C;
-  --muted2:    #93B3A2;
+  --muted:     #527A66; /* 4.9:1 on white — WCAG AA */
+  --muted2:    #7E9C8B;
 
   --red:     #E0533D;
   --red-bg:  #FDEDEA;
@@ -76,7 +76,8 @@ h1, h2, h3 { font-family: var(--font-display); }
 .plant-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .plant-grid .card { margin-bottom: 0; }
 .main-content {
-  flex: 1; padding: 16px 16px 120px; overflow-y: auto;
+  /* bottom padding lets the last card scroll clear of the FAB + pill nav */
+  flex: 1; padding: 16px 16px 176px; overflow-y: auto;
   animation: contentFadeIn .22s ease;
 }
 @keyframes contentFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -151,7 +152,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 .action-sq.dark { background: var(--deep); }
 .action-sq.mint { background: var(--mint); }
 .action-sq.ghost { background: var(--beige); }
-.action-sq svg { width: 26px; height: 26px; }
+.action-sq svg { width: 36px; height: 36px; }
 .action-sq:disabled { opacity: .35; cursor: default; }
 
 /* days-left tag */

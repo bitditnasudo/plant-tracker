@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
-import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw, BellRing } from 'lucide-react'
+import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw, BellRing, Wand2 } from 'lucide-react'
 import { useStore, APP_VERSION } from '../lib/store.jsx'
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
+import { generatePlantIcon } from '../lib/gemini.js'
+import { getCatalogPlant } from '../lib/catalog.js'
 import { Avatar } from '../components/PlantIcons.jsx'
 
 // the little guy — pixel-art Claude critter for the footer
@@ -31,7 +33,36 @@ function ClaudeCritter(props) {
 }
 
 export default function Account() {
-  const { state, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync } = useStore()
+  const { state, icons, saveIcon, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync } = useStore()
+  const [regenBusy, setRegenBusy] = useState(false)
+  const [regenMsg, setRegenMsg] = useState(null)
+
+  const regenerateAllIcons = async () => {
+    const targets = state.plants.filter(p => icons[p.id])
+    if (targets.length === 0) {
+      setRegenMsg('No generated icons yet — create them from each plant’s card first.')
+      return
+    }
+    setRegenBusy(true)
+    let done = 0
+    let failed = 0
+    for (const p of targets) {
+      const cat = getCatalogPlant(p.catalogId)
+      if (!cat) continue
+      try {
+        const url = await generatePlantIcon(state.settings.geminiKey, {
+          name: cat.name, details: cat.details, pot: p.potType || cat.pot, potColor: p.potColor || cat.potColor,
+        })
+        await saveIcon(p.id, url)
+        done++
+      } catch {
+        failed++
+      }
+      setRegenMsg(`Regenerating… ${done + failed}/${targets.length}`)
+    }
+    setRegenMsg(`Done — ${done} icon${done === 1 ? '' : 's'} regenerated${failed ? `, ${failed} failed` : ''}.`)
+    setRegenBusy(false)
+  }
   const [cityQuery, setCityQuery] = useState('')
   const [cityResults, setCityResults] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -246,6 +277,15 @@ export default function Account() {
             onChange={e => setSettings({ geminiKey: e.target.value.trim() })}
           />
         </div>
+        {state.settings.geminiKey && (
+          <div style={{ marginTop: 10 }}>
+            <button className="btn btn-ghost btn-sm" onClick={regenerateAllIcons} disabled={regenBusy}>
+              {regenBusy ? <Loader2 size={14} className="spin" /> : <Wand2 size={14} />}
+              {regenBusy ? 'Regenerating…' : 'Regenerate all icons (new style)'}
+            </button>
+            {regenMsg && <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>{regenMsg}</p>}
+          </div>
+        )}
       </div>
 
       <div className="card">
