@@ -88,26 +88,46 @@ async function ensureFolder() {
   return created.id
 }
 
+// Resumable uploads: the simple multipart/media protocols cap at 5 MB, which a
+// large floor-plan image can exceed. Resumable handles any size.
+async function uploadResumable(method, initUrl, metadata, jsonString) {
+  const token = getStoredToken()
+  if (!token) throw new AuthExpiredError()
+  const init = await fetch(initUrl, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify(metadata),
+  })
+  if (init.status === 401) { clearToken(); throw new AuthExpiredError() }
+  if (!init.ok) throw new Error(`Drive upload init failed (${init.status})`)
+  const location = init.headers.get('Location')
+  if (!location) throw new Error('Drive did not return an upload session')
+  const up = await fetch(location, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: jsonString,
+  })
+  if (!up.ok) throw new Error(`Drive upload failed (${up.status})`)
+  return up.json()
+}
+
 export async function createSyncFile(jsonString) {
   const folderId = await ensureFolder()
-  const boundary = 'pt-sync-' + Date.now()
-  const body =
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify({ name: SYNC_FILE_NAME, parents: [folderId], mimeType: 'application/json' }) +
-    `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n` +
-    jsonString +
-    `\r\n--${boundary}--`
-  const created = await driveFetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
-    { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body },
+  const created = await uploadResumable(
+    'POST',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',
+    { name: SYNC_FILE_NAME, parents: [folderId], mimeType: 'application/json' },
+    jsonString,
   )
   return created.id
 }
 
 export async function updateSyncFile(fileId, jsonString) {
-  return driveFetch(
-    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id`,
-    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: jsonString },
+  return uploadResumable(
+    'PATCH',
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable&fields=id`,
+    {},
+    jsonString,
   )
 }
 

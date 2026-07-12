@@ -181,12 +181,27 @@ export function StoreProvider({ children }) {
     setIcons(iconMap)
   }, [])
 
-  const buildPayload = useCallback(() => ({
-    savedAt: new Date().toISOString(),
-    version: APP_VERSION,
-    state: latest.current.state,
-    blobs: { planImage: latest.current.planImage, icons: latest.current.icons },
-  }), [])
+  // Read blobs straight from IndexedDB so a push never races the async boot
+  // load (that race once uploaded a payload without the floor plan).
+  const buildPayload = useCallback(async () => {
+    let planImg = latest.current.planImage
+    let iconMap = latest.current.icons
+    try {
+      planImg = (await idbGet('plan:image')) || planImg || null
+      const keys = await idbKeys()
+      const m = {}
+      for (const k of keys) {
+        if (typeof k === 'string' && k.startsWith('icon:')) m[k.slice(5)] = await idbGet(k)
+      }
+      if (Object.keys(m).length || Object.keys(iconMap).length === 0) iconMap = m
+    } catch { /* fall back to in-memory copies */ }
+    return {
+      savedAt: new Date().toISOString(),
+      version: APP_VERSION,
+      state: latest.current.state,
+      blobs: { planImage: planImg, icons: iconMap },
+    }
+  }, [])
 
   const syncNow = useCallback(async () => {
     if (!isAuthenticated()) { setSync(s => ({ ...s, connected: false })); return }
@@ -196,19 +211,37 @@ export function StoreProvider({ children }) {
     try {
       const meta = loadSyncMeta()
       let fileId = meta.fileId || (await findSyncFile())?.id || null
+      let mustPush = dirty.current || !fileId
 
       if (fileId && !dirty.current) {
         // nothing local to push — adopt the remote copy if it moved forward
         const remote = await downloadSyncFile(fileId).catch(() => null)
         if (remote?.savedAt && remote.savedAt > (meta.savedAt || '')) {
-          await applyPayload(remote)
-          saveSyncMeta({ ...meta, fileId, savedAt: remote.savedAt, lastSync: Date.now() })
+          const localPlants = latest.current.state.plants?.length || 0
+          const remotePlants = remote.state?.plants?.length || 0
+          const localPlan = (await idbGet('plan:image').catch(() => null)) || latest.current.planImage
+          if (localPlants > 0 && remotePlants === 0) {
+            // remote looks like a fresh device's accidental empty overwrite —
+            // keep this device's data and repair the Drive copy instead
+            mustPush = true
+          } else {
+            if (localPlan && !remote.blobs?.planImage) {
+              // remote is missing the floor plan this device has — merge it
+              // back in, then re-upload the repaired payload
+              remote.blobs = { ...remote.blobs, planImage: localPlan }
+              mustPush = true
+            }
+            await applyPayload(remote)
+            saveSyncMeta({ fileId, savedAt: remote.savedAt, lastSync: Date.now() })
+          }
         } else {
           saveSyncMeta({ ...meta, fileId, savedAt: meta.savedAt || remote?.savedAt || null, lastSync: Date.now() })
         }
-      } else {
-        // local changes (or no remote file yet) — push; last write wins
-        const payload = buildPayload()
+      }
+
+      if (mustPush) {
+        // push local data; last write wins
+        const payload = await buildPayload()
         const body = JSON.stringify(payload)
         if (fileId) await updateSyncFile(fileId, body)
         else fileId = await createSyncFile(body)

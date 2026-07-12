@@ -66,7 +66,7 @@ function WeatherCard() {
 }
 
 export default function Dashboard() {
-  const { state, weather } = useStore()
+  const { state, weather, sync } = useStore()
   const [query, setQuery] = useState('')
   const [rainPlant, setRainPlant] = useState(null)
   const [detailPlant, setDetailPlant] = useState(null)
@@ -107,6 +107,12 @@ export default function Dashboard() {
         <Search size={17} />
         <input placeholder="Search" value={query} onChange={e => setQuery(e.target.value)} />
       </div>
+
+      {sync.error && (
+        <div className="card" style={{ borderColor: 'var(--red)', background: 'var(--red-bg)', color: 'var(--red)', fontSize: 13, fontWeight: 600 }}>
+          Sync problem: {sync.error}
+        </div>
+      )}
 
       <WeatherCard />
 

@@ -33,7 +33,14 @@ async function pdfToImage(file) {
   // so the conversion still finishes if the tab is hidden or throttled mid-upload.
   await page.render({ canvasContext: ctx, viewport, intent: 'print' }).promise
 
-  return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height }
+  return { dataUrl: compress(canvas), width: canvas.width, height: canvas.height }
+}
+
+// Keep stored/synced plan images small: webp where supported, else jpeg.
+function compress(canvas) {
+  const webp = canvas.toDataURL('image/webp', 0.85)
+  if (webp.startsWith('data:image/webp')) return webp
+  return canvas.toDataURL('image/jpeg', 0.85)
 }
 
 async function svgToImage(file) {
