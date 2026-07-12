@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import {
   ChevronRight, MapPin, LocateFixed, Search, Upload, Loader2,
-  AppWindow, Square, Ruler, CloudRain, Plus, Check,
+  AppWindow, Square, Ruler, CloudRain, Plus, Check, Cloud,
 } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
+import { signIn } from '../lib/googleDrive.js'
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { fileToPlanImage } from '../lib/planFile.js'
 import { Avatar, Sprout, WateringCan } from '../components/PlantIcons.jsx'
@@ -106,6 +107,12 @@ export default function Onboarding() {
             <button className="btn btn-primary btn-block" style={{ maxWidth: 280 }} onClick={next}>
               Let’s go <ChevronRight size={16} />
             </button>
+            <button className="btn btn-ghost btn-block" style={{ maxWidth: 280, marginTop: 10 }} onClick={signIn}>
+              <Cloud size={16} /> I already use Plant Tracker
+            </button>
+            <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+              Sign in with Google to restore your plants and floor plan from Drive — no setup needed.
+            </p>
           </div>
         )}
 
