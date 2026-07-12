@@ -8,6 +8,7 @@ import {
   isAuthenticated, signIn, clearToken as clearGoogleToken,
   findSyncFile, createSyncFile, updateSyncFile, downloadSyncFile, AuthExpiredError,
 } from './googleDrive.js'
+import { syncCalendarReminders, clearCalendarReminders } from './calendarSync.js'
 
 export const APP_VERSION = '1.0.0'
 const LS_KEY = 'plant-tracker:v1'
@@ -41,7 +42,7 @@ const ENV_PERENUAL = import.meta.env.VITE_PERENUAL_KEY || ''
 
 const DEFAULT_STATE = {
   profile: { name: '', email: '' },
-  settings: { geminiKey: ENV_GEMINI, perenualKey: ENV_PERENUAL, location: null, onboardingDone: false }, // location: {lat, lon, label}
+  settings: { geminiKey: ENV_GEMINI, perenualKey: ENV_PERENUAL, location: null, onboardingDone: false, calendarReminders: false }, // location: {lat, lon, label}
   customCatalog: [],              // catalogue entries imported from the online search
   plan: {
     hasImage: false,
@@ -278,6 +279,33 @@ export function StoreProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /* ── Google Calendar watering reminders ─────────────────────────────── */
+  const [calStatus, setCalStatus] = useState({ error: null, lastSync: null })
+  const calBusy = useRef(false)
+  const calTimer = useRef(null)
+
+  const runCalendarSync = useCallback(async () => {
+    const s = latest.current.state
+    if (calBusy.current || !isAuthenticated() || !s.settings.calendarReminders) return
+    calBusy.current = true
+    try {
+      await syncCalendarReminders(s.plants, s.settings.location?.lat)
+      setCalStatus({ error: null, lastSync: Date.now() })
+    } catch (e) {
+      setCalStatus(st => ({ ...st, error: e.message }))
+    } finally {
+      calBusy.current = false
+    }
+  }, [])
+
+  // refresh reminder events shortly after any schedule-relevant change
+  useEffect(() => {
+    if (!state.settings.calendarReminders || !sync.connected) return
+    clearTimeout(calTimer.current)
+    calTimer.current = setTimeout(runCalendarSync, 5000)
+    return () => clearTimeout(calTimer.current)
+  }, [state.plants, state.settings.calendarReminders, state.settings.location, sync.connected, runCalendarSync])
+
   const api = useMemo(() => ({
     setProfile: p => patch(s => ({ ...s, profile: { ...s.profile, ...p } })),
     setSettings: p => patch(s => ({ ...s, settings: { ...s.settings, ...p } })),
@@ -348,20 +376,32 @@ export function StoreProvider({ children }) {
     },
     refreshSync: () => { // called by AuthCallback after the token lands
       setSync(s => ({ ...s, connected: isAuthenticated(), error: null }))
+      setCalStatus({ error: null, lastSync: null })
       if (isAuthenticated()) syncNowRef.current()
     },
     syncNow,
+
+    setCalendarReminders: async enabled => {
+      patch(s => ({ ...s, settings: { ...s.settings, calendarReminders: enabled } }))
+      if (enabled) {
+        setTimeout(() => runCalendarSync(), 100)
+      } else {
+        try { await clearCalendarReminders() } catch { /* events may already be gone */ }
+        setCalStatus({ error: null, lastSync: null })
+      }
+    },
+    runCalendarSync,
 
     refreshWeather: async () => {
       if (!location) return
       try { setWeather(await fetchWeather(location)); setWeatherError(null) }
       catch (e) { setWeatherError(e.message) }
     },
-  }), [patch, planImage, icons, state, location, applyPayload, syncNow])
+  }), [patch, planImage, icons, state, location, applyPayload, syncNow, runCalendarSync])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, sync, ...api }),
-    [state, weather, weatherError, planImage, icons, sync, api],
+    () => ({ state, weather, weatherError, planImage, icons, sync, calStatus, ...api }),
+    [state, weather, weatherError, planImage, icons, sync, calStatus, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

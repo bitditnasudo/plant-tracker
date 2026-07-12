@@ -121,6 +121,16 @@ How it behaves:
 - Google tokens last ~1 h; when one expires the app keeps working locally and
   shows "session expired — reconnect" in Account. Reconnecting resumes sync.
 
+**Watering reminders (Google Calendar):** with Drive connected, Account →
+"Calendar watering reminders" creates one event per plant on its next
+watering date (9:00 local) in your primary Google Calendar, with a popup
+notification on every signed-in device plus an email reminder from Google.
+Events update automatically ~5 s after anything changes the schedule
+(watering, rain answers, adding/removing plants) and are cleaned up when
+you turn the toggle off. Requires the calendar permission — if you
+connected before this feature existed, press "Connect Google Drive" once
+more to grant it.
+
 Setup on a new device: open the app, run through onboarding (or skip), then
 Connect Google Drive — it pulls your existing data. For a deployed copy
 (Vercel), first add the deployed URL to the OAuth client in Google Cloud

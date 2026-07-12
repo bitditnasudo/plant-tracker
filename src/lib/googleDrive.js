@@ -3,7 +3,8 @@
 // The whole app state lives in one JSON file inside a "PLANT TRACKER" folder.
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
-const SCOPES = 'https://www.googleapis.com/auth/drive.file'
+// drive.file: only files this app creates; calendar.events: watering reminders
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events'
 export const SYNC_FILE_NAME = 'plant-tracker-sync.json'
 const FOLDER_NAME = 'PLANT TRACKER'
 

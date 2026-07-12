@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
-import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw } from 'lucide-react'
+import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw, BellRing } from 'lucide-react'
 import { useStore, APP_VERSION } from '../lib/store.jsx'
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { Avatar } from '../components/PlantIcons.jsx'
 
 export default function Account() {
-  const { state, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow } = useStore()
+  const { state, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders } = useStore()
   const [cityQuery, setCityQuery] = useState('')
   const [cityResults, setCityResults] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -153,6 +153,36 @@ export default function Account() {
           )}
         </div>
         {sync.error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 8 }}>{sync.error}</p>}
+
+        {sync.connected && (
+          <div className="row-list" style={{ marginTop: 6, borderTop: '1px solid var(--border)' }}>
+            <div className="row" style={{ borderBottom: 'none' }}>
+              <div className="row-icon"><BellRing size={18} /></div>
+              <div className="grow">
+                Calendar watering reminders
+                <small>
+                  {state.settings.calendarReminders
+                    ? `On — each plant gets a 9:00 event in your Google Calendar (notification + email to your Google account).${calStatus.lastSync ? ` Updated ${new Date(calStatus.lastSync).toLocaleTimeString()}` : ''}`
+                    : 'Off — get notified by Google Calendar on all your devices when a plant is due.'}
+                </small>
+              </div>
+              <button
+                className={`btn btn-sm ${state.settings.calendarReminders ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setCalendarReminders(!state.settings.calendarReminders)}
+              >
+                {state.settings.calendarReminders ? 'On' : 'Turn on'}
+              </button>
+            </div>
+            {calStatus.error && (
+              <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 2 }}>
+                {calStatus.error}
+                {calStatus.error.includes('permission') && (
+                  <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={connectGoogle}>Reconnect</button>
+                )}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card">
