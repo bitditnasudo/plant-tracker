@@ -5,7 +5,7 @@ import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { Avatar } from '../components/PlantIcons.jsx'
 
 export default function Account() {
-  const { state, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders } = useStore()
+  const { state, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync } = useStore()
   const [cityQuery, setCityQuery] = useState('')
   const [cityResults, setCityResults] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -175,10 +175,11 @@ export default function Account() {
             </div>
             {calStatus.error && (
               <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 2 }}>
-                {calStatus.error}
+                {calStatus.error}{' '}
                 {calStatus.error.includes('permission') && (
-                  <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={connectGoogle}>Reconnect</button>
+                  <button className="btn btn-ghost btn-sm" onClick={connectGoogle}>Reconnect</button>
                 )}
+                <button className="btn btn-ghost btn-sm" onClick={runCalendarSync}>Retry</button>
               </p>
             )}
           </div>

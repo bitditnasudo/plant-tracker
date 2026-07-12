@@ -12,7 +12,7 @@ const REMINDER_HOUR = '09:00' // local time the reminder fires
 
 export class CalendarScopeError extends Error {
   constructor() {
-    super('Calendar permission missing — press "Connect Google Drive" again to grant it')
+    super('Calendar permission missing — press "Connect Google Drive" again and make sure the calendar checkbox is ticked on Google\'s consent screen')
     this.name = 'CalendarScopeError'
   }
 }
@@ -25,7 +25,17 @@ async function calFetch(url, options = {}) {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   if (res.status === 401) { clearToken(); throw new AuthExpiredError() }
-  if (res.status === 403) throw new CalendarScopeError()
+  if (res.status === 403) {
+    // distinguish "API not enabled in the Cloud project" from a missing scope
+    const e = await res.json().catch(() => ({}))
+    const reason = e?.error?.errors?.[0]?.reason || e?.error?.status || ''
+    const msg = e?.error?.message || ''
+    if (reason === 'accessNotConfigured' || reason === 'SERVICE_DISABLED' ||
+        msg.includes('has not been used') || msg.includes('is disabled')) {
+      throw new Error('The Google Calendar API is not enabled in your Google Cloud project. Enable it (APIs & Services → Library → "Google Calendar API"), wait a minute, then retry.')
+    }
+    throw new CalendarScopeError()
+  }
   if (res.status === 204 || res.status === 410) return null // deleted / already gone
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
