@@ -5,6 +5,7 @@ import { useStore } from '../lib/store.jsx'
 import { CATALOG, CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
 import { searchPerenual, fetchPerenualEntry, FREE_TIER_MAX_ID } from '../lib/perenual.js'
 import { PlantIcon } from './PlantIcons.jsx'
+import { ZonePicker } from './ZonePicker.jsx'
 
 const POT_TYPES = ['terracotta pot', 'ceramic pot', 'hanging pot', 'glass vase', 'shallow bonsai dish', 'grow bag', 'glass terrarium', 'ceramic bowl', 'small ceramic pot', 'clear orchid pot']
 const POT_COLORS = ['warm orange', 'cream white', 'mint green', 'sage green', 'charcoal grey', 'sand beige', 'clear']
@@ -26,6 +27,7 @@ export function AddPlantModal({ onClose }) {
   const [isOutside, setIsOutside] = useState(false)
   const [watered, setWatered] = useState(0)
   const [wateredDate, setWateredDate] = useState('') // used when watered === 'other'
+  const [zoneId, setZoneId] = useState(null)
 
   // online search
   const [onlineResults, setOnlineResults] = useState(null)
@@ -47,6 +49,7 @@ export function AddPlantModal({ onClose }) {
     setPotType(POT_TYPES.includes(cat.pot) ? cat.pot : POT_TYPES[0])
     setPotColor(POT_COLORS.includes(cat.potColor) ? cat.potColor : POT_COLORS[0])
     setIsOutside(false)
+    setZoneId(null)
   }
 
   const searchOnline = async () => {
@@ -85,13 +88,23 @@ export function AddPlantModal({ onClose }) {
     const lastWatered = watered === 'other'
       ? wateredDate || null // null = "never" -> due immediately
       : formatISO(subDays(new Date(), watered), { representation: 'date' })
+    // picking a room drops the plant inside that zone on the plan (nudge it later)
+    let placement = { x: null, y: null, zoneId: null }
+    const zone = zoneId && state.plan.zones.find(z => z.id === zoneId)
+    if (zone) {
+      placement = {
+        zoneId: zone.id,
+        x: zone.x + zone.w * (0.3 + Math.random() * 0.4),
+        y: zone.y + zone.h * (0.3 + Math.random() * 0.4),
+      }
+    }
     addPlant({
       id: crypto.randomUUID(),
       catalogId: selected.id,
       nickname: nickname.trim(),
       potType, potColor,
       isOutside: selected.outdoor ? isOutside : false,
-      x: null, y: null, zoneId: null,
+      ...placement,
       lastWatered,
       lastMisted: lastWatered,
       lastFertilized: formatISO(new Date(), { representation: 'date' }),
@@ -240,6 +253,13 @@ export function AddPlantModal({ onClose }) {
                 </div>
               </div>
             )}
+            <ZonePicker
+              plantLight={selected.light}
+              zones={state.plan.zones}
+              value={zoneId}
+              onChange={setZoneId}
+            />
+
             <div className="field">
               <label>Last watered</label>
               <div className="seg">

@@ -6,6 +6,7 @@ import { getCatalogPlant, LIGHT_LABELS } from '../lib/catalog.js'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, daysLeftLabel, waterIntervalDays } from '../lib/schedule.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { PlantIcon } from './PlantIcons.jsx'
+import { ZonePicker } from './ZonePicker.jsx'
 
 export function PlantDetailModal({ plant, onClose }) {
   const { state, icons, updatePlant, removePlant, markWatered, markMisted, markFertilized, saveIcon } = useStore()
@@ -103,6 +104,22 @@ export function PlantDetailModal({ plant, onClose }) {
             />
           </div>
         </div>
+
+        <ZonePicker
+          plantLight={cat.light}
+          zones={state.plan.zones}
+          value={plant.zoneId}
+          allowNone={false}
+          onChange={id => {
+            const z = state.plan.zones.find(zn => zn.id === id)
+            if (!z) return
+            updatePlant(plant.id, {
+              zoneId: z.id,
+              x: z.x + z.w * (0.3 + Math.random() * 0.4),
+              y: z.y + z.h * (0.3 + Math.random() * 0.4),
+            })
+          }}
+        />
 
         {cat.outdoor && (
           <div className="field">

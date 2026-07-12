@@ -283,6 +283,18 @@ h1, h2, h3 { font-family: var(--font-display); }
 .sheet-handle { width: 44px; height: 5px; border-radius: 3px; background: var(--mint); opacity: .5; margin: 0 auto 14px; }
 .sheet h2 { font-size: 20px; margin-bottom: 14px; }
 
+/* room picker with light-match tags */
+.zone-pick { display: flex; flex-direction: column; gap: 6px; }
+.zone-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-xs);
+  padding: 10px 12px; cursor: pointer; font-family: inherit; font-size: 14px; color: var(--text);
+  text-align: left;
+}
+.zone-row.sel { border-color: var(--olive); background: var(--beige); }
+.zone-row .zname { font-weight: 600; }
+.zone-row .zname small { color: var(--muted); font-weight: 500; }
+
 /* catalog grid inside Add Plant */
 .catalog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .catalog-item {

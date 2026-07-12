@@ -172,3 +172,15 @@ export function setCustomCatalog(entries) {
 export function getCatalogPlant(id) {
   return CATALOG.find(p => p.id === id) || customCatalog.get(id) || null
 }
+
+// How well a room's light suits a plant (Planta-style match tags).
+// One step apart is livable; two steps (direct-sun plant in shade, or a
+// shade plant in full sun) is asking for trouble.
+const LIGHT_ORDER = { direct: 0, partial: 1, shade: 2 }
+
+export function lightMatch(plantLight, zoneLight) {
+  const d = Math.abs((LIGHT_ORDER[plantLight] ?? 1) - (LIGHT_ORDER[zoneLight] ?? 1))
+  if (d === 0) return { label: 'Ideal', cls: 'ok' }
+  if (d === 1) return { label: 'Acceptable', cls: 'soon' }
+  return { label: 'Not recommended', cls: 'due' }
+}
