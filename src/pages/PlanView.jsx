@@ -32,6 +32,28 @@ function windowInfo(w, northDeg, lat, metersPerUnit) {
   }
 }
 
+// Suggest a light level for a room from its windows, their facing and room depth.
+// Direct sun only reaches deep into shallow rooms; interiors get indirect light.
+function suggestZoneLight(rect, windows, northDeg, lat, metersPerUnit) {
+  const margin = 25 // plan units: windows sit on the room's walls
+  const relevant = windows.filter(w => {
+    const mx = (w.x0 + w.x1) / 2
+    const my = (w.y0 + w.y1) / 2
+    return mx >= rect.x - margin && mx <= rect.x + rect.w + margin &&
+           my >= rect.y - margin && my <= rect.y + rect.h + margin
+  })
+  if (relevant.length === 0) return { light: 'shade', reason: 'no windows in this room' }
+  const lights = relevant.map(w => windowInfo(w, northDeg, lat).light)
+  const deep = metersPerUnit ? Math.min(rect.w, rect.h) * metersPerUnit > 4.5 : false
+  if (lights.includes('direct sun')) {
+    return deep
+      ? { light: 'partial', reason: 'sun-facing window, but a deep room — mostly indirect inside' }
+      : { light: 'direct', reason: 'sun-facing window' }
+  }
+  if (lights.includes('partial sun')) return { light: 'partial', reason: 'east/west window — sun part of the day' }
+  return { light: 'shade', reason: 'away-from-sun window — bright indirect light' }
+}
+
 // screen-space geometry for rendering a window segment
 function segMeta(w, view, metersPerUnit) {
   const dx = w.x1 - w.x0
@@ -181,7 +203,12 @@ export default function PlanView() {
     if (g.type === 'zone') {
       gesture.current = null
       const rect = normRect(g)
-      if (rect.w * view.s > 24 && rect.h * view.s > 24) setZoneSheet(rect)
+      if (rect.w * view.s > 24 && rect.h * view.s > 24) {
+        setZoneSheet({
+          ...rect,
+          suggested: suggestZoneLight(rect, plan.windows, plan.northDeg, lat, plan.metersPerUnit),
+        })
+      }
       setZoneDraft(null)
       return
     }
@@ -521,8 +548,10 @@ export default function PlanView() {
       {/* zone naming sheet */}
       {zoneSheet && (
         <ZoneSheet
+          suggested={zoneSheet.suggested}
           onSave={(name, light) => {
-            const zone = { id: crypto.randomUUID(), ...zoneSheet, name, light }
+            const { suggested, ...rect } = zoneSheet
+            const zone = { id: crypto.randomUUID(), ...rect, name, light }
             setPlan({ zones: [...plan.zones, zone] })
             // adopt plants already sitting inside the new zone
             placed.forEach(p => {
@@ -587,9 +616,9 @@ function normRect({ x0, y0, x1, y1 }) {
   return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) }
 }
 
-function ZoneSheet({ onSave, onClose }) {
+function ZoneSheet({ suggested, onSave, onClose }) {
   const [name, setName] = useState('')
-  const [light, setLight] = useState('partial')
+  const [light, setLight] = useState(suggested?.light || 'partial')
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={e => e.stopPropagation()}>
@@ -606,6 +635,11 @@ function ZoneSheet({ onSave, onClose }) {
               <button key={l} className={light === l ? 'active' : ''} onClick={() => setLight(l)}>{LIGHT_LABELS[l]}</button>
             ))}
           </div>
+          {suggested && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              Suggested: <b>{LIGHT_LABELS[suggested.light]}</b> — {suggested.reason}. Adjust if you know better.
+            </p>
+          )}
         </div>
         <button className="btn btn-primary btn-block" disabled={!name.trim()} onClick={() => onSave(name.trim(), light)}>Save zone</button>
       </div>
