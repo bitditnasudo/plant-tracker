@@ -4,6 +4,32 @@ import { useStore, APP_VERSION } from '../lib/store.jsx'
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { Avatar } from '../components/PlantIcons.jsx'
 
+// the little guy — pixel-art Claude critter for the footer
+function ClaudeCritter(props) {
+  return (
+    <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" shapeRendering="crispEdges" {...props}>
+      <g fill="#2293F5">
+        <rect x="52" y="0" width="16" height="40" />
+        <rect x="40" y="12" width="40" height="16" />
+        <rect x="97" y="9" width="10" height="27" />
+        <rect x="89" y="17" width="26" height="10" />
+        <rect x="77" y="30" width="9" height="9" />
+      </g>
+      <g fill="#CC785C">
+        <rect x="15" y="45" width="90" height="60" />
+        <rect x="0" y="82" width="15" height="16" />
+        <rect x="105" y="82" width="15" height="16" />
+        <rect x="23" y="105" width="8" height="15" />
+        <rect x="38" y="105" width="8" height="15" />
+        <rect x="74" y="105" width="8" height="15" />
+        <rect x="89" y="105" width="8" height="15" />
+      </g>
+      <rect x="30" y="59" width="8" height="16" fill="#000" />
+      <rect x="82" y="59" width="8" height="16" fill="#000" />
+    </svg>
+  )
+}
+
 export default function Account() {
   const { state, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync } = useStore()
   const [cityQuery, setCityQuery] = useState('')
@@ -250,6 +276,11 @@ export default function Account() {
       </div>
 
       {msg && <p className="muted center" style={{ marginTop: 4 }}>{msg}</p>}
+
+      <div className="center" style={{ padding: '20px 0 8px' }}>
+        <ClaudeCritter style={{ width: 46, height: 46 }} />
+        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>made with the loving help of Claude</p>
+      </div>
     </div>
   )
 }
