@@ -38,14 +38,22 @@
   --shell-w: 440px;
 }
 
-html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+html { font-size: 16px; -webkit-text-size-adjust: 100%; background: var(--bg-top); }
 
 body {
   font-family: var(--font-body);
-  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%) fixed;
+  /* solid fallback so the status-bar / overscroll areas are never white;
+     iOS ignores background-attachment: fixed, so the gradient lives on a
+     fixed pseudo-layer instead */
+  background: var(--bg-top);
   color: var(--text);
   min-height: 100dvh;
   line-height: 1.5;
+}
+
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
 }
 
 h1, h2, h3 { font-family: var(--font-display); }
@@ -76,8 +84,10 @@ h1, h2, h3 { font-family: var(--font-display); }
 .plant-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .plant-grid .card { margin-bottom: 0; }
 .main-content {
-  /* bottom padding lets the last card scroll clear of the FAB + pill nav */
-  flex: 1; padding: 16px 16px 176px; overflow-y: auto;
+  /* top padding clears the (transparent) iOS status bar in standalone mode;
+     bottom padding lets the last card scroll clear of the FAB + pill nav */
+  flex: 1; padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 176px;
+  overflow-y: auto;
   animation: contentFadeIn .22s ease;
 }
 @keyframes contentFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -522,7 +532,7 @@ h1, h2, h3 { font-family: var(--font-display); }
     flex: 1;
     max-width: 860px;
     margin: 0 auto;
-    padding: 32px 32px 48px;
+    padding: calc(32px + env(safe-area-inset-top, 0px)) 32px 48px;
   }
 
   .plant-grid { grid-template-columns: repeat(2, 1fr); }

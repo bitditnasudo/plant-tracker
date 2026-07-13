@@ -16,7 +16,10 @@ export function buildIconPrompt({ name, details, pot, potColor }) {
     `Nothing else is in the image: no glass panel, no frame, no border, no decorative shapes, no ornaments, ` +
     `no background objects — only the potted plant. ` +
     `The texture is friendly, tactile, and clean, like soft clay, with a soft-focus depth of field. ` +
-    `Color palette: olive green #40916C, mint green #74C69D, pale beige-green #D8F3DC, deep forest green #1B4332, white #FFFFFF. ` +
+    `Color palette for the background, pot and foliage tones only: olive green #40916C, mint green #74C69D, ` +
+    `pale beige-green #D8F3DC, deep forest green #1B4332, white #FFFFFF. ` +
+    `Important: if the plant has flowers or buds, render them in the species' true natural colors ` +
+    `(vivid pinks, reds, oranges, yellows, purples or whites as appropriate) — never recolor blooms green or to the palette. ` +
     `Square image, no text.`
 }
 
