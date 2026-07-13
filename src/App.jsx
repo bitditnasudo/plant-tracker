@@ -51,6 +51,7 @@ function BottomNav({ onFab }) {
 function AppShell() {
   const { state } = useStore()
   const [showAdd, setShowAdd] = useState(false)
+  const location = useLocation()
 
   if (!state.settings.onboardingDone) return <Onboarding />
 
@@ -63,9 +64,12 @@ function AppShell() {
         <Route path="/account" element={<Account />} />
         <Route path="*"        element={<Navigate to="/" replace />} />
       </Routes>
-      <button className="fab" aria-label="Add plant" onClick={() => setShowAdd(true)}>
-        <Plus size={26} />
-      </button>
+      {/* add-plant FAB is contextual — not on the Account page */}
+      {location.pathname !== '/account' && (
+        <button className="fab" aria-label="Add plant" onClick={() => setShowAdd(true)}>
+          <Plus size={26} />
+        </button>
+      )}
       <BottomNav onFab={() => setShowAdd(true)} />
       {showAdd && <AddPlantModal onClose={() => setShowAdd(false)} />}
     </div>

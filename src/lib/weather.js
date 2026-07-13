@@ -22,10 +22,13 @@ export async function searchCity(name) {
   const res = await fetch(url)
   if (!res.ok) throw new Error('Geocoding failed')
   const data = await res.json()
-  return (data.results || []).map(r => ({
-    lat: r.latitude, lon: r.longitude,
-    label: [r.name, r.admin1, r.country_code].filter(Boolean).join(', '),
-  }))
+  return (data.results || []).map(r => {
+    // skip the admin region when it repeats the city ("Querétaro City, Querétaro")
+    const parts = [r.name]
+    if (r.admin1 && !r.name.toLowerCase().includes(r.admin1.toLowerCase())) parts.push(r.admin1)
+    if (r.country_code) parts.push(r.country_code)
+    return { lat: r.latitude, lon: r.longitude, label: parts.join(', ') }
+  })
 }
 
 export async function fetchWeather({ lat, lon }) {

@@ -54,6 +54,25 @@ function suggestZoneLight(rect, windows, northDeg, lat, metersPerUnit) {
   return { light: 'shade', reason: 'away-from-sun window — bright indirect light' }
 }
 
+// Group plant markers that would overlap at the current zoom into clusters.
+// Greedy pass is fine at household plant counts.
+function buildClusters(placed, view, radius) {
+  const clusters = []
+  for (const p of placed) {
+    const x = p.x * view.s + view.tx
+    const y = p.y * view.s + view.ty
+    const c = clusters.find(c => Math.hypot(c.x - x, c.y - y) < radius)
+    if (c) {
+      c.items.push(p)
+      c.x += (x - c.x) / c.items.length
+      c.y += (y - c.y) / c.items.length
+    } else {
+      clusters.push({ x, y, items: [p] })
+    }
+  }
+  return clusters
+}
+
 // screen-space geometry for rendering a window segment
 function segMeta(w, view, metersPerUnit) {
   const dx = w.x1 - w.x0
@@ -473,7 +492,7 @@ export default function PlanView() {
             onPointerDown={e => e.stopPropagation()}
             onClick={() => mode === 'erase' && setPlan({ zones: plan.zones.filter(x => x.id !== z.id) })}
           >
-            {z.name} · {LIGHT_LABELS[z.light]}
+            <span className="zone-chip">{z.name} · {LIGHT_LABELS[z.light]}</span>
           </div>
         ))}
         {zoneDraft && (() => {
@@ -518,26 +537,68 @@ export default function PlanView() {
           <div key={i} className="cal-dot" style={{ left: p.x * view.s + view.tx, top: p.y * view.s + view.ty }} />
         ))}
 
-        {/* plant markers */}
-        {placed.map(p => {
-          const cat = getCatalogPlant(p.catalogId)
-          const left = waterDaysLeft(p, lat)
-          const custom = icons[p.id]
+        {/* plant markers: sized with the zoom (28–54px), clustered when they'd overlap */}
+        {(() => {
+          const markerPx = Math.max(28, Math.min(54, (view.s * (plan.width || 800)) / 8))
+          const showTags = markerPx >= 40
+          // a jiggling (dragged) plant always renders solo, above any cluster
+          const clusterable = placed.filter(p => p.id !== jiggleId)
+          const clusters = buildClusters(clusterable, view, markerPx * 0.9)
+          const solo = clusters.filter(c => c.items.length === 1).map(c => c.items[0])
+          const jiggling = placed.find(p => p.id === jiggleId)
+
+          const renderMarker = p => {
+            const cat = getCatalogPlant(p.catalogId)
+            const left = waterDaysLeft(p, lat)
+            const custom = icons[p.id]
+            return (
+              <div
+                key={p.id}
+                className={`plan-marker${jiggleId === p.id ? ' jiggle' : ''}`}
+                style={{ left: p.x * view.s + view.tx, top: p.y * view.s + view.ty, width: markerPx, height: markerPx }}
+                onPointerDown={e => markerDown(e, p)}
+                onPointerMove={e => markerMove(e, p)}
+                onPointerUp={e => markerUp(e, p)}
+                onPointerCancel={e => markerUp(e, p)}
+              >
+                {custom ? <img src={custom} alt="" /> : <PlantIcon icon={cat?.icon} />}
+                {showTags && (
+                  <span className={`tag marker-tag ${left <= 0 ? 'due' : left <= 1 ? 'soon' : 'ok'}`}>💧{left <= 0 ? '!' : `${left}d`}</span>
+                )}
+              </div>
+            )
+          }
+
+          const zoomInto = c => {
+            const r = wrapRef.current.getBoundingClientRect()
+            const planX = (c.x - view.tx) / view.s
+            const planY = (c.y - view.ty) / view.s
+            const s = Math.min(8, view.s * 2.4)
+            setView({ s, tx: r.width / 2 - planX * s, ty: r.height / 2 - planY * s })
+          }
+
           return (
-            <div
-              key={p.id}
-              className={`plan-marker${jiggleId === p.id ? ' jiggle' : ''}`}
-              style={{ left: p.x * view.s + view.tx, top: p.y * view.s + view.ty }}
-              onPointerDown={e => markerDown(e, p)}
-              onPointerMove={e => markerMove(e, p)}
-              onPointerUp={e => markerUp(e, p)}
-              onPointerCancel={e => markerUp(e, p)}
-            >
-              {custom ? <img src={custom} alt="" /> : <PlantIcon icon={cat?.icon} />}
-              <span className={`tag marker-tag ${left <= 0 ? 'due' : left <= 1 ? 'soon' : 'ok'}`}>💧{left <= 0 ? '!' : `${left}d`}</span>
-            </div>
+            <>
+              {solo.map(renderMarker)}
+              {clusters.filter(c => c.items.length > 1).map((c, i) => {
+                const worst = Math.min(...c.items.map(p => waterDaysLeft(p, lat)))
+                const cls = worst <= 0 ? 'due' : worst <= 1 ? 'soon' : 'ok'
+                return (
+                  <button
+                    key={`cl-${i}`} className={`cluster-chip ${cls}`}
+                    style={{ left: c.x, top: c.y, width: markerPx + 10, height: markerPx + 10, fontSize: Math.round(markerPx * 0.34) }}
+                    title={`${c.items.length} plants — tap to zoom in`}
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={() => zoomInto(c)}
+                  >
+                    🪴{c.items.length}
+                  </button>
+                )
+              })}
+              {jiggling && renderMarker(jiggling)}
+            </>
           )
-        })}
+        })()}
 
         <div className="compass" title={`North is ${plan.northDeg}° from plan-up`}>
           <span style={{ display: 'inline-block', rotate: `${plan.northDeg}deg` }}>▲N</span>

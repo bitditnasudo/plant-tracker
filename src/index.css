@@ -318,8 +318,9 @@ h1, h2, h3 { font-family: var(--font-display); }
 .plan-canvas img { display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 
 .plan-marker {
+  /* width/height set inline: scales with zoom, clamped 28–54px */
   position: absolute; transform: translate(-50%, -85%);
-  width: 52px; height: 52px; border-radius: 14px;
+  border-radius: 14px;
   background: linear-gradient(145deg, rgba(116, 198, 157, 0.45), rgba(255, 255, 255, 0.85));
   border: 1.5px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 5px 12px rgba(27, 67, 50, 0.22);
@@ -341,6 +342,21 @@ h1, h2, h3 { font-family: var(--font-display); }
   position: absolute; top: -12px; right: -14px; transform: none;
 }
 
+/* overlapping plants collapse into a count chip; tap zooms in */
+.cluster-chip {
+  position: absolute; transform: translate(-50%, -50%);
+  border-radius: 50%; cursor: pointer;
+  background: rgba(255, 255, 255, 0.94);
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  font-family: var(--font-display); font-weight: 800; color: var(--deep);
+  box-shadow: 0 5px 14px rgba(27, 67, 50, 0.25);
+  transition: transform .12s ease;
+}
+.cluster-chip:active { transform: translate(-50%, -50%) scale(.92); }
+.cluster-chip.ok   { border: 3px solid var(--olive); }
+.cluster-chip.soon { border: 3px solid var(--amber); }
+.cluster-chip.due  { border: 3px solid var(--red); animation: rainPulse 1.6s ease infinite; }
+
 /* window = wall segment drawn at real size; position/size set inline */
 .window-marker {
   position: absolute; border-radius: 3px;
@@ -356,16 +372,31 @@ h1, h2, h3 { font-family: var(--font-display); }
   pointer-events: none;
 }
 
+/* near-transparent fills: floor plans have their own colors — the dashed
+   border + label chip carry the zone identity instead of a tint */
 .zone-rect {
   position: absolute; border-radius: 8px; border: 2px dashed;
-  display: flex; align-items: flex-start; justify-content: flex-start; padding: 4px 6px;
-  font-size: 11px; font-weight: 800; pointer-events: none;
+  pointer-events: none;
 }
-.zone-rect.direct  { background: rgba(233, 162, 59, .14); border-color: rgba(233, 162, 59, .8); color: #B37718; }
-.zone-rect.partial { background: rgba(116, 198, 157, .16); border-color: var(--mint); color: var(--olive); }
-.zone-rect.shade   { background: rgba(27, 67, 50, .12); border-color: var(--olive); color: var(--deep); }
+.zone-rect.direct  { background: rgba(233, 162, 59, .05); border-color: rgba(233, 162, 59, .85); color: #A76B10; }
+.zone-rect.partial { background: rgba(116, 198, 157, .06); border-color: var(--mint); color: var(--olive); }
+.zone-rect.shade   { background: rgba(27, 67, 50, .04); border-color: var(--olive); color: var(--deep); }
 
-.plan-toolbar { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; padding: 2px; }
+.zone-chip {
+  position: absolute; top: 4px; left: 4px; max-width: calc(100% - 8px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.9); border-radius: var(--radius-pill);
+  padding: 2px 9px; font-size: 11px; font-weight: 800;
+  box-shadow: 0 1px 4px rgba(27, 67, 50, 0.18);
+}
+
+.plan-toolbar {
+  display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; padding: 2px;
+  scrollbar-width: none; /* fade edge hints at more chips instead of a scrollbar */
+  -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, #000 90%, transparent);
+}
+.plan-toolbar::-webkit-scrollbar { display: none; }
 .chip {
   border: 1px solid var(--border); background: var(--surface); color: var(--olive);
   font-size: 12.5px; font-weight: 700; padding: 8px 13px; border-radius: var(--radius-pill);

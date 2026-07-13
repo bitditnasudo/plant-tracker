@@ -94,8 +94,8 @@ export function AddPlantModal({ onClose }) {
     if (zone) {
       placement = {
         zoneId: zone.id,
-        x: zone.x + zone.w * (0.3 + Math.random() * 0.4),
-        y: zone.y + zone.h * (0.3 + Math.random() * 0.4),
+        x: zone.x + zone.w * (0.15 + Math.random() * 0.7),
+        y: zone.y + zone.h * (0.15 + Math.random() * 0.7),
       }
     }
     addPlant({

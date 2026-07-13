@@ -189,7 +189,9 @@ export default function Account() {
               <small>
                 {sync.connected
                   ? `Connected — your plants and plan sync as a file in your Drive's "PLANT TRACKER" folder.${sync.lastSync ? ` Last sync: ${new Date(sync.lastSync).toLocaleTimeString()}` : ''}`
-                  : 'Off — data lives only on this device. Connect to use the app on all your devices.'}
+                  : sync.lastSync
+                    ? `Session expired — reconnect to resume sync. Your data is safe on this device. Last sync: ${new Date(sync.lastSync).toLocaleTimeString()}`
+                    : 'Off — data lives only on this device. Connect to use the app on all your devices.'}
               </small>
             </div>
           </div>
@@ -205,7 +207,7 @@ export default function Account() {
             </>
           ) : (
             <button className="btn btn-primary btn-sm" onClick={connectGoogle}>
-              <Cloud size={14} /> Connect Google Drive
+              <Cloud size={14} /> {sync.lastSync ? 'Reconnect Google Drive' : 'Connect Google Drive'}
             </button>
           )}
         </div>

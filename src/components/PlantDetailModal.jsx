@@ -115,8 +115,8 @@ export function PlantDetailModal({ plant, onClose }) {
             if (!z) return
             updatePlant(plant.id, {
               zoneId: z.id,
-              x: z.x + z.w * (0.3 + Math.random() * 0.4),
-              y: z.y + z.h * (0.3 + Math.random() * 0.4),
+              x: z.x + z.w * (0.15 + Math.random() * 0.7),
+              y: z.y + z.h * (0.15 + Math.random() * 0.7),
             })
           }}
         />
