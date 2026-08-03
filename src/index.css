@@ -15,7 +15,7 @@
   --border:    rgba(27, 67, 50, 0.10);
   --text:      #1B4332;
   --muted:     #527A66; /* 4.9:1 on white — WCAG AA */
-  --muted2:    #7E9C8B;
+  --muted2:    #5C7C69; /* 4.62:1 on white — measured, clears AA */
 
   --red:     #E0533D;
   --red-bg:  #FDEDEA;
@@ -113,7 +113,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 .header .hello small { font-size: 13px; color: var(--muted); font-weight: 500; display: block; }
 .header .hello b { font-family: var(--font-display); font-size: 21px; }
 .icon-btn {
-  width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer;
+  width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
   background: var(--glass); color: var(--deep); display: flex; align-items: center; justify-content: center;
   position: relative;
 }
@@ -165,7 +165,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 .plant-actions { display: flex; gap: 9px; margin-top: auto; padding-top: 8px; align-items: center; justify-content: flex-end; }
 
 .action-sq {
-  width: 42px; height: 42px; border-radius: 12px; border: none; cursor: pointer;
+  width: 44px; height: 44px; border-radius: 12px; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: transform .12s ease;
 }
 .action-sq:active { transform: scale(.9); }
@@ -226,7 +226,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 }
 .notif-tabs button {
   flex: 1; border: none; background: none; border-radius: 8px;
-  padding: 7px 2px; cursor: pointer; font-family: inherit;
+  padding: 7px 2px; min-height: 44px; cursor: pointer; font-family: inherit;
   font-size: 11px; font-weight: 800; color: var(--olive);
   display: flex; align-items: center; justify-content: center; gap: 4px;
 }
@@ -260,7 +260,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 
 /* one-tap log, right inside the bubble */
 .n-log {
-  flex-shrink: 0; width: 36px; height: 36px; border-radius: 11px;
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
   border: 1px solid rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .75);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
   transition: transform .12s ease, background .12s ease;
@@ -287,7 +287,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 
 /* ── Buttons / inputs ── */
 .btn {
-  border: none; border-radius: var(--radius-sm); padding: 12px 18px;
+  border: none; border-radius: var(--radius-sm); padding: 12px 18px; min-height: 44px;
   font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   transition: transform .12s ease, opacity .12s ease;
@@ -299,7 +299,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 .btn-ghost   { background: var(--beige); color: var(--olive); }
 .btn-danger  { background: var(--red-bg); color: var(--red); }
 .btn-block   { width: 100%; }
-.btn-sm      { padding: 8px 13px; font-size: 13px; border-radius: var(--radius-xs); }
+.btn-sm      { padding: 8px 13px; min-height: 44px; font-size: 13px; border-radius: var(--radius-xs); }
 
 /* min-width:0 is load-bearing: flex children default to min-width:auto and
    refuse to shrink below a control's intrinsic width. iOS gives native date
@@ -319,7 +319,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 
 .seg { display: flex; background: var(--beige); border-radius: var(--radius-xs); padding: 3px; gap: 3px; }
 .seg button {
-  flex: 1; border: none; background: none; padding: 8px 6px; border-radius: 8px;
+  flex: 1; border: none; background: none; padding: 8px 6px; min-height: 44px; border-radius: 8px;
   font-size: 13px; font-weight: 700; color: var(--olive); cursor: pointer; font-family: inherit;
 }
 .seg button.active { background: var(--deep); color: #fff; }
@@ -337,7 +337,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 }
 .nav-item {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  background: none; border: none; cursor: pointer; padding: 4px 10px;
+  background: none; border: none; cursor: pointer; padding: 7px 10px; min-height: 44px;
 }
 .nav-item .nav-label { font-size: 9px; color: var(--muted2); font-weight: 600; }
 .nav-item svg { color: var(--muted2); transition: color .15s ease, transform .15s ease; }
