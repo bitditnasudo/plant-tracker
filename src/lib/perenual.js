@@ -94,6 +94,21 @@ export function estimatedEntry({ perenualId, name, latin }) {
 
 const isUpgradeWall = v => typeof v === 'string' && v.includes('Upgrade Plans')
 
+/* One-time backfill helper: fetch just enough of a species record to classify
+ * its wind sensitivity, without disturbing the watering numbers already
+ * stored. Returns null when the free tier withholds the species (HTTP 429 on
+ * ids above ~3000) so the caller can fall back to taxonomy and stop retrying.
+ */
+export async function fetchWindSensitivity(key, perenualId) {
+  const res = await fetch(`${BASE}/species/details/${perenualId}?key=${encodeURIComponent(key)}`)
+  if (res.status === 429) return null            // gated, not rate-limited
+  if (res.status === 401 || res.status === 403) throw new Error('Perenual rejected the API key')
+  if (!res.ok) return null
+  const d = await res.json()
+  if (isUpgradeWall(d.watering)) return null
+  return deriveWindSensitivity(d)
+}
+
 export async function fetchPerenualEntry(key, row) {
   const { perenualId } = row
   const res = await fetch(`${BASE}/species/details/${perenualId}?key=${encodeURIComponent(key)}`)

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw, BellRing, Wand2 } from 'lucide-react'
+import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw, BellRing, Wand2, Wind } from 'lucide-react'
 import { useStore, APP_VERSION } from '../lib/store.jsx'
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { generatePlantIcon } from '../lib/gemini.js'
@@ -33,7 +33,7 @@ function ClaudeCritter(props) {
 }
 
 export default function Account() {
-  const { state, icons, saveIcon, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync } = useStore()
+  const { state, icons, saveIcon, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync, backfill, backfillClassifications } = useStore()
   const [regenBusy, setRegenBusy] = useState(false)
   const [regenMsg, setRegenMsg] = useState(null)
 
@@ -261,6 +261,24 @@ export default function Account() {
             onChange={e => setSettings({ perenualKey: e.target.value.trim() })}
           />
         </div>
+        {state.settings.perenualKey && (
+          <div style={{ marginTop: 10 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => backfillClassifications({ force: true })} disabled={backfill.running}>
+              {backfill.running ? <Loader2 size={14} className="spin" /> : <Wind size={14} />}
+              {backfill.running ? `Checking ${backfill.done}/${backfill.total}…` : 'Re-check wind classifications'}
+            </button>
+            {backfill.results.length > 0 && (
+              <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.7 }}>
+                {backfill.results.map(r => (
+                  <div key={r.name}>
+                    {r.name}: <b>{r.cls}</b>{r.via === 'taxonomy' && ' (from name — species data not on the free tier)'}
+                  </div>
+                ))}
+              </div>
+            )}
+            {backfill.error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 6 }}>{backfill.error}</p>}
+          </div>
+        )}
       </div>
 
       <div className="card">

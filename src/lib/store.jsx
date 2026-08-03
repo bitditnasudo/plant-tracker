@@ -9,6 +9,8 @@ import {
   findSyncFile, createSyncFile, updateSyncFile, downloadSyncFile, AuthExpiredError,
 } from './googleDrive.js'
 import { syncCalendarReminders, clearCalendarReminders } from './calendarSync.js'
+import { fetchWindSensitivity } from './perenual.js'
+import { deriveWindSensitivityFromCatalog } from './schedule.js'
 
 export const APP_VERSION = '1.0.0'
 const LS_KEY = 'plant-tracker:v1'
@@ -373,6 +375,63 @@ export function StoreProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /* ── One-time classification backfill ────────────────────────────────
+   * Species imported before wind sensitivity existed have no stored class,
+   * so they fall back to taxonomy — which is right for cacti and Phormium
+   * but not for thirsty broadleaf bloomers, whose evidence lives in API
+   * fields we never saved. This re-fetches just the classification.
+   */
+  const [backfill, setBackfill] = useState({ running: false, done: 0, total: 0, results: [], error: null })
+  const backfillBusy = useRef(false)
+
+  const backfillClassifications = useCallback(async ({ force = false } = {}) => {
+    const s = latest.current.state
+    const key = s.settings.perenualKey
+    if (!key || backfillBusy.current) return
+    const targets = (s.customCatalog || []).filter(e =>
+      e.source === 'perenual' && (force || !e.windSensitivity) && /^perenual-(\d+)$/.test(e.id))
+    if (!targets.length) {
+      patch(st => ({ ...st, settings: { ...st.settings, classificationsBackfilledAt: nowIso() }, settingsUpdatedAt: nowIso() }))
+      return
+    }
+
+    backfillBusy.current = true
+    setBackfill({ running: true, done: 0, total: targets.length, results: [], error: null })
+    const results = []
+    for (let i = 0; i < targets.length; i++) {
+      const entry = targets[i]
+      const pid = entry.id.match(/^perenual-(\d+)$/)[1]
+      let cls = null
+      let via = 'api'
+      try {
+        cls = await fetchWindSensitivity(key, pid)
+      } catch (e) {
+        setBackfill(b => ({ ...b, error: e.message }))
+      }
+      if (!cls) { cls = deriveWindSensitivityFromCatalog(entry); via = 'taxonomy' } // gated species
+      const changed = cls !== deriveWindSensitivityFromCatalog(entry) || !entry.windSensitivity
+      patch(st => ({
+        ...st,
+        customCatalog: st.customCatalog.map(e => e.id === entry.id ? { ...e, windSensitivity: cls } : e),
+      }))
+      results.push({ name: entry.name, cls, via, changed })
+      setBackfill(b => ({ ...b, done: i + 1, results: [...results] }))
+      if (i < targets.length - 1) await new Promise(r => setTimeout(r, 4000)) // stay under the throttle
+    }
+    patch(st => ({ ...st, settings: { ...st.settings, classificationsBackfilledAt: nowIso() }, settingsUpdatedAt: nowIso() }))
+    setBackfill(b => ({ ...b, running: false }))
+    backfillBusy.current = false
+  }, [patch])
+
+  // run itself once, quietly, when there is anything to fix
+  useEffect(() => {
+    if (state.settings.classificationsBackfilledAt || !state.settings.perenualKey) return
+    const pending = (state.customCatalog || []).some(e => e.source === 'perenual' && !e.windSensitivity)
+    if (!pending) return
+    const t = setTimeout(() => backfillClassifications(), 3000) // let the app settle first
+    return () => clearTimeout(t)
+  }, [state.settings.classificationsBackfilledAt, state.settings.perenualKey, state.customCatalog, backfillClassifications])
+
   /* ── Google Calendar watering reminders ─────────────────────────────── */
   const [calStatus, setCalStatus] = useState({ error: null, lastSync: null })
   const calBusy = useRef(false)
@@ -491,6 +550,8 @@ export function StoreProvider({ children }) {
     },
     runCalendarSync,
 
+    backfillClassifications,
+
     refreshWeather: async () => {
       if (!location) return
       try {
@@ -501,8 +562,8 @@ export function StoreProvider({ children }) {
   }), [patch, planImage, icons, state, location, applyPayload, syncNow, runCalendarSync, mergeWindDaily])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, sync, calStatus, windLog, ...api }),
-    [state, weather, weatherError, planImage, icons, sync, calStatus, windLog, api],
+    () => ({ state, weather, weatherError, planImage, icons, sync, calStatus, windLog, backfill, ...api }),
+    [state, weather, weatherError, planImage, icons, sync, calStatus, windLog, backfill, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
