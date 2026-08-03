@@ -1,13 +1,13 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
-import { waterDaysLeft, fertilizeDaysLeft, RAIN_ASK_MM } from '../lib/schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, RAIN_ASK_MM } from '../lib/schedule.js'
 import { describeWeatherCode } from '../lib/weather.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { PlantCard } from '../components/PlantCard.jsx'
 import { RainModal } from '../components/RainModal.jsx'
 import { PlantDetailModal } from '../components/PlantDetailModal.jsx'
-import { Avatar, Sprout } from '../components/PlantIcons.jsx'
+import { Avatar, Sprout, WateringCan, SprayBottle } from '../components/PlantIcons.jsx'
 import { useNavigate } from 'react-router-dom'
 
 const WX_ICONS = { sun: Sun, 'cloud-sun': CloudSun, cloud: Cloud, rain: CloudRain, snow: Snowflake, storm: Zap }
@@ -66,7 +66,7 @@ function WeatherCard() {
 }
 
 export default function Dashboard() {
-  const { state, weather, sync } = useStore()
+  const { state, weather, sync, markWatered, markMisted, markFertilized } = useStore()
   const [query, setQuery] = useState('')
   const [rainPlant, setRainPlant] = useState(null)
   const [detailPlant, setDetailPlant] = useState(null)
@@ -75,19 +75,26 @@ export default function Dashboard() {
   const lat = state.settings.location?.lat
 
   // what's actually due today, straight from the schedule
-  const { dueWater, dueFeed } = useMemo(() => {
+  const { dueWater, dueMist, dueFeed } = useMemo(() => {
     const water = []
+    const mist = []
     const feed = []
     for (const plant of state.plants) {
       const cat = getCatalogPlant(plant.catalogId)
       if (!cat) continue
       const w = waterDaysLeft(plant, lat)
       if (w <= 0) water.push({ plant, cat, left: w })
+      const m = mistDaysLeft(plant)
+      if (m !== null && m <= 0) mist.push({ plant, cat, left: m })
       const f = fertilizeDaysLeft(plant)
       if (f !== null && f <= 0) feed.push({ plant, cat, left: f })
     }
     const byUrgency = (a, b) => a.left - b.left
-    return { dueWater: water.sort(byUrgency), dueFeed: feed.sort(byUrgency) }
+    return {
+      dueWater: water.sort(byUrgency),
+      dueMist: mist.sort(byUrgency),
+      dueFeed: feed.sort(byUrgency),
+    }
   }, [state.plants, lat, weather])
 
   // dismiss the bubble on an outside tap or Escape
@@ -140,51 +147,43 @@ export default function Dashboard() {
 
           {showNotifs && (
             <div className="notif-bubble" role="dialog" aria-label="Today's tasks">
-              {dueWater.length === 0 && dueFeed.length === 0 ? (
+              {dueWater.length === 0 && dueMist.length === 0 && dueFeed.length === 0 ? (
                 <div className="notif-empty">
                   Nothing due today — every plant is happy. 🌿
                 </div>
               ) : (
-                <>
-                  {dueWater.length > 0 && (
-                    <>
-                      <h4>Needs watering</h4>
-                      {dueWater.map(({ plant, cat, left }) => (
-                        <div
-                          key={plant.id} className="notif-item water"
-                          onClick={() => { setShowNotifs(false); setDetailPlant(plant) }}
-                        >
-                          <Droplets size={17} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="n-name">{plant.nickname || cat?.name}</div>
-                            <div className="n-sub">
-                              {left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'}
-                            </div>
+                [
+                  { key: 'water', title: 'Needs watering',   items: dueWater, Icon: Droplets, Art: WateringCan, log: markWatered,    verb: 'watering' },
+                  { key: 'mist',  title: 'Needs misting',    items: dueMist,  Icon: Droplets, Art: SprayBottle, log: markMisted,     verb: 'misting' },
+                  { key: 'feed',  title: 'Needs fertilizing', items: dueFeed, Icon: Sparkles, Art: null,        log: markFertilized, verb: 'feeding' },
+                ].map(({ key, title, items, Icon, Art, log, verb }) => items.length > 0 && (
+                  <div key={key}>
+                    <h4>{title}</h4>
+                    {items.map(({ plant, cat, left }) => (
+                      <div
+                        key={plant.id} className={`notif-item ${key}`}
+                        onClick={() => { setShowNotifs(false); setDetailPlant(plant) }}
+                      >
+                        <Icon size={17} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="n-name">{plant.nickname || cat?.name}</div>
+                          <div className="n-sub">
+                            {left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'}
                           </div>
                         </div>
-                      ))}
-                    </>
-                  )}
-                  {dueFeed.length > 0 && (
-                    <>
-                      <h4>Needs fertilizing</h4>
-                      {dueFeed.map(({ plant, cat, left }) => (
-                        <div
-                          key={plant.id} className="notif-item feed"
-                          onClick={() => { setShowNotifs(false); setDetailPlant(plant) }}
+                        {/* log it here without opening the plant */}
+                        <button
+                          className="n-log"
+                          aria-label={`Log ${verb} for ${plant.nickname || cat?.name}`}
+                          title={`Log ${verb}`}
+                          onClick={e => { e.stopPropagation(); log(plant.id) }}
                         >
-                          <Sparkles size={17} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div className="n-name">{plant.nickname || cat?.name}</div>
-                            <div className="n-sub">
-                              {left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </>
+                          {Art ? <Art /> : <Sparkles size={18} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))
               )}
             </div>
           )}

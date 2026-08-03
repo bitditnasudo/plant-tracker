@@ -224,8 +224,20 @@ h1, h2, h3 { font-family: var(--font-display); }
 .notif-item .n-sub  { font-size: 11.5px; color: var(--muted); }
 .notif-item svg { flex-shrink: 0; }
 .notif-item.water    { background: var(--blue-bg);  border-color: #CFE3F3; color: #3C6E99; }
+.notif-item.mist     { background: #E3F5F2;         border-color: #BCE3DB; color: #2F7D72; }
 .notif-item.feed     { background: var(--beige);    border-color: var(--mint); color: var(--olive); }
 .notif-item:active   { transform: scale(.985); }
+
+/* one-tap log, right inside the bubble */
+.n-log {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .75);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform .12s ease, background .12s ease;
+}
+.n-log:hover  { background: #fff; }
+.n-log:active { transform: scale(.88); }
+.n-log svg { width: 22px; height: 22px; }
 .notif-empty { text-align: center; padding: 14px 6px; color: var(--muted); font-size: 13px; }
 
 /* ── Weather card ── */
