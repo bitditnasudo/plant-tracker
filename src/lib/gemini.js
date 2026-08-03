@@ -53,8 +53,12 @@ export async function lookupPlantCare(apiKey, { name, latin }) {
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     )
     if (!res.ok) {
-      lastError = new Error(`Lookup failed (${res.status})`)
-      if (res.status === 404 || res.status === 429 || res.status === 403) continue
+      // 503 = the model is momentarily overloaded, which is common on preview
+      // models; fall through to the next one rather than failing the lookup.
+      lastError = new Error(res.status === 503
+        ? 'That model is busy right now — trying another…'
+        : `Lookup failed (${res.status})`)
+      if ([403, 404, 429, 500, 502, 503, 504].includes(res.status)) continue
       throw lastError
     }
     const data = await res.json()
