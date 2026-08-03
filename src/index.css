@@ -193,7 +193,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 .notif-wrap { position: relative; }
 .notif-bubble {
   position: absolute; top: calc(100% + 12px); right: -4px; z-index: 60;
-  width: min(320px, calc(100vw - 40px));
+  width: min(344px, calc(100vw - 36px));
   background: var(--surface); backdrop-filter: blur(10px);
   border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow-pop);
@@ -209,6 +209,23 @@ h1, h2, h3 { font-family: var(--font-display); }
   border-left: 1px solid var(--border); border-top: 1px solid var(--border);
   transform: rotate(45deg);
 }
+.notif-tabs {
+  display: flex; gap: 3px; margin-bottom: 12px;
+  background: var(--beige); border-radius: var(--radius-xs); padding: 3px;
+}
+.notif-tabs button {
+  flex: 1; border: none; background: none; border-radius: 8px;
+  padding: 7px 2px; cursor: pointer; font-family: inherit;
+  font-size: 11px; font-weight: 800; color: var(--olive);
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.notif-tabs button.active { background: var(--deep); color: #fff; }
+.notif-tabs .cnt {
+  font-size: 9.5px; line-height: 1.5; min-width: 15px; border-radius: 99px;
+  background: rgba(27, 67, 50, .16); padding: 0 4px;
+}
+.notif-tabs button.active .cnt { background: rgba(255, 255, 255, .28); }
+
 .notif-bubble h4 {
   font-family: var(--font-display); font-size: 12px; text-transform: uppercase;
   letter-spacing: .04em; color: var(--muted); margin: 10px 2px 7px;
@@ -226,6 +243,8 @@ h1, h2, h3 { font-family: var(--font-display); }
 .notif-item.water    { background: var(--blue-bg);  border-color: #CFE3F3; color: #3C6E99; }
 .notif-item.mist     { background: #E3F5F2;         border-color: #BCE3DB; color: #2F7D72; }
 .notif-item.feed     { background: var(--beige);    border-color: var(--mint); color: var(--olive); }
+/* rain matches the red confirmation bubble on the plant cards */
+.notif-item.rain     { background: var(--red-bg);   border-color: var(--red-border, #F3CFC7); color: #B0472F; }
 .notif-item:active   { transform: scale(.985); }
 
 /* one-tap log, right inside the bubble */
