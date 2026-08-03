@@ -265,14 +265,12 @@ export function StoreProvider({ children }) {
         const remoteNewer = !!remote?.savedAt && remote.savedAt > (meta.savedAt || '')
 
         if (remote?.state && (remoteNewer || dirty.current)) {
-          // merge instead of last-write-wins: a stale device can add its
-          // edits but can never wipe out plants it doesn't know about
-          const local = latest.current.state
-          const { state: merged, planFromLocal } = mergeStates(local, remote.state)
-
+          // Read blobs FIRST, then merge, so the merge uses the freshest local
+          // state. Doing it the other way round meant an edit made during these
+          // awaits (e.g. answering a rain bubble) was silently overwritten by
+          // applyPayload with a snapshot taken before it.
           const localPlanImg = (await idbGet('plan:image').catch(() => null)) || latest.current.planImage
           const remotePlanImg = remote.blobs?.planImage || null
-          const planImage = planFromLocal ? (localPlanImg || remotePlanImg) : (remotePlanImg || localPlanImg)
 
           const localIcons = {}
           try {
@@ -281,6 +279,11 @@ export function StoreProvider({ children }) {
             }
           } catch { /* fall back to remote icons */ }
           const icons = { ...(remote.blobs?.icons || {}), ...localIcons }
+
+          // merge instead of last-write-wins: a stale device can add its
+          // edits but can never wipe out plants it doesn't know about
+          const { state: merged, planFromLocal } = mergeStates(latest.current.state, remote.state)
+          const planImage = planFromLocal ? (localPlanImg || remotePlanImg) : (remotePlanImg || localPlanImg)
 
           await applyPayload({ state: merged, blobs: { planImage, icons } })
 

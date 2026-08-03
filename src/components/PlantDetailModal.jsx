@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { formatISO } from 'date-fns'
-import { Droplets, Sun, Sparkles, Trash2, Loader2, Wand2 } from 'lucide-react'
+import { Droplets, Sun, Sparkles, Trash2, Loader2, Wand2, Wind } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS } from '../lib/catalog.js'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, daysLeftLabel, waterIntervalDays } from '../lib/schedule.js'
+import {
+  waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, daysLeftLabel, waterIntervalDays,
+  EXPOSURE_LEVELS, resolveExposure, intervalBreakdown,
+} from '../lib/schedule.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { PlantIcon } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
@@ -120,6 +123,55 @@ export function PlantDetailModal({ plant, onClose }) {
             })
           }}
         />
+
+        <div className="field">
+          <label><Wind size={12} /> Wind exposure — shortens the watering interval</label>
+          <div className="seg">
+            {Object.entries(EXPOSURE_LEVELS).map(([key, lvl]) => (
+              <button
+                key={key}
+                className={resolveExposure(plant) === key ? 'active' : ''}
+                onClick={() => updatePlant(plant.id, { exposure: key })}
+              >
+                {lvl.label}
+              </button>
+            ))}
+          </div>
+          {(() => {
+            const b = intervalBreakdown(plant, lat)
+            return (
+              <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                {EXPOSURE_LEVELS[b.exposure].hint}.{' '}
+                {b.override
+                  ? <>Manual override: <b>every {b.override} days</b> (model would say {Math.max(1, Math.round(b.base * (EXPOSURE_LEVELS[b.exposure].factor)))}).</>
+                  : <>Base {b.base} days → <b>every {b.effective} days</b> here.</>}
+              </p>
+            )
+          })()}
+        </div>
+
+        <div className="field">
+          <label>Watering interval override (days)</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="number" min="1" max="120" inputMode="numeric"
+              placeholder={`auto — ${waterIntervalDays({ ...plant, intervalOverride: null }, lat)} days`}
+              value={plant.intervalOverride || ''}
+              onChange={e => {
+                const v = e.target.value
+                updatePlant(plant.id, { intervalOverride: v === '' ? null : Math.max(1, Math.min(120, +v)) })
+              }}
+            />
+            {plant.intervalOverride > 0 && (
+              <button className="btn btn-ghost btn-sm" onClick={() => updatePlant(plant.id, { intervalOverride: null })}>
+                Auto
+              </button>
+            )}
+          </div>
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+            Set this if you’ve watched the plant and know better than the model — it wins over everything else.
+          </p>
+        </div>
 
         {cat.outdoor && (
           <div className="field">

@@ -1,7 +1,7 @@
 import { CloudRain } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant } from '../lib/catalog.js'
-import { FULL_RAIN_MM } from '../lib/schedule.js'
+import { FULL_RAIN_MM, RAIN_OUTCOME } from '../lib/schedule.js'
 
 export function RainModal({ plant, onClose }) {
   const { weather, answerRain } = useStore()
@@ -9,8 +9,8 @@ export function RainModal({ plant, onClose }) {
   const mm = weather?.yesterdayRainMm ?? 0
   const heavy = mm >= FULL_RAIN_MM
 
-  const answer = gotWet => {
-    answerRain(plant.id, weather, gotWet)
+  const answer = outcome => {
+    answerRain(plant.id, weather, outcome)
     onClose()
   }
 
@@ -29,14 +29,25 @@ export function RainModal({ plant, onClose }) {
           </p>
           <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
             {heavy
-              ? 'That much rain counts as a full watering — the schedule will reset as if watered yesterday.'
-              : 'Light rain isn’t a full watering — the next watering will just be pushed back one day.'}
+              ? 'Enough rain to soak a pot — but you know whether this one actually caught it.'
+              : 'A light total on the forecast grid can still soak an exposed pot, or miss a sheltered one entirely.'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <button className="btn btn-ghost btn-block" onClick={() => answer(false)}>No, it stayed dry</button>
-          <button className="btn btn-primary btn-block" onClick={() => answer(true)}>Yes, it got wet</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
+          <button className="btn btn-primary btn-block" onClick={() => answer(RAIN_OUTCOME.SOAKED)}>
+            Yes — soaked the soil
+          </button>
+          <button className="btn btn-mint btn-block" onClick={() => answer(RAIN_OUTCOME.DAMP)}>
+            Only a light sprinkle
+          </button>
+          <button className="btn btn-ghost btn-block" onClick={() => answer(RAIN_OUTCOME.DRY)}>
+            No, it stayed dry
+          </button>
         </div>
+        <p className="muted center" style={{ fontSize: 11.5, marginTop: 10 }}>
+          “Soaked” logs a watering dated to the rain day, exactly like tapping the
+          watering can. “Sprinkle” just pushes the next watering back one day.
+        </p>
       </div>
     </div>
   )
