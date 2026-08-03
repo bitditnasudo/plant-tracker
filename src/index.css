@@ -96,7 +96,8 @@ h1, h2, h3 { font-family: var(--font-display); }
   /* top padding clears the (transparent) iOS status bar in standalone mode;
      bottom padding lets the last card scroll clear of the FAB + pill nav */
   flex: 1; padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 176px;
-  overflow-y: auto;
+  overflow-y: auto; overflow-x: hidden;
+  touch-action: pan-y; /* pages scroll vertically only — never drag sideways */
   animation: contentFadeIn .22s ease;
 }
 @keyframes contentFadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -207,6 +208,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow-pop);
   padding: 14px; max-height: 60vh; overflow-y: auto; overscroll-behavior: contain;
+  overflow-x: hidden; touch-action: pan-y;
   animation: bubbleIn .18s cubic-bezier(.3, 1.2, .5, 1);
   transform-origin: top right;
 }
@@ -299,13 +301,20 @@ h1, h2, h3 { font-family: var(--font-display); }
 .btn-block   { width: 100%; }
 .btn-sm      { padding: 8px 13px; font-size: 13px; border-radius: var(--radius-xs); }
 
-.field { margin-bottom: 14px; }
+/* min-width:0 is load-bearing: flex children default to min-width:auto and
+   refuse to shrink below a control's intrinsic width. iOS gives native date
+   pickers a very wide intrinsic size, which pushed side-by-side fields past
+   the sheet edge and made the whole sheet pannable sideways. */
+.field { margin-bottom: 14px; min-width: 0; }
 .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
 .field input, .field select, .field textarea {
-  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-xs);
+  width: 100%; min-width: 0; max-width: 100%;
+  border: 1px solid var(--border); border-radius: var(--radius-xs);
   background: #fff; padding: 11px 13px; font-size: 16px; color: var(--text);
   font-family: inherit; outline: none;
 }
+/* stops iOS sizing the control to its own chrome rather than its box */
+.field input[type="date"] { -webkit-appearance: none; appearance: none; }
 .field input:focus, .field select:focus { border-color: var(--mint); }
 
 .seg { display: flex; background: var(--beige); border-radius: var(--radius-xs); padding: 3px; gap: 3px; }
@@ -362,14 +371,24 @@ h1, h2, h3 { font-family: var(--font-display); }
   position: fixed; inset: 0; background: rgba(27, 67, 50, 0.42);
   display: flex; align-items: flex-end; justify-content: center; z-index: 100;
   animation: fadeIn .18s ease;
+  /* dragging the backdrop must do nothing at all */
+  touch-action: none;
+  overscroll-behavior: none;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .sheet {
   background: var(--bg-bottom); width: 100%; max-width: 440px;
   border-radius: 26px 26px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom, 0px));
   max-height: 88dvh; overflow-y: auto; animation: sheetUp .25s cubic-bezier(.3, 1.1, .5, 1);
-  /* scrolling the sheet must never drag the page behind it */
+  /* scrolling the sheet must never drag the page behind it, and it must never
+     scroll sideways however wide a child renders on some engine */
   overscroll-behavior: contain;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  /* pan-y is the actual fix for "I can drag the contents around": the browser
+     is told the only legal gesture here is a vertical scroll, so sideways and
+     diagonal drags are refused outright rather than rubber-banding. */
+  touch-action: pan-y;
 }
 @keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet-handle { width: 44px; height: 5px; border-radius: 3px; background: var(--mint); opacity: .5; margin: 0 auto 14px; }
@@ -483,6 +502,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 
 .plan-toolbar {
   display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; padding: 2px;
+  touch-action: pan-x; /* this strip is the one place a sideways drag is wanted */
   scrollbar-width: none; /* fade edge hints at more chips instead of a scrollbar */
   -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent);
   mask-image: linear-gradient(90deg, #000 90%, transparent);
