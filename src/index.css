@@ -278,7 +278,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 .weather-card .wx-row { display: flex; align-items: center; gap: 14px; }
 .weather-card .wx-temp { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; }
 .weather-card .wx-desc { font-size: 13px; opacity: .85; }
-.weather-card .wx-stats { display: flex; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
+.weather-card .wx-stats { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; justify-content: center; }
 .weather-card .wx-stat { font-size: 12px; opacity: .9; display: flex; align-items: center; gap: 5px; }
 .weather-card .rain-note {
   margin-top: 12px; padding: 9px 12px; border-radius: var(--radius-xs);

@@ -40,7 +40,7 @@ function WeatherCard() {
   return (
     <div className="card weather-card">
       <div className="wx-row">
-        <WxIcon size={38} strokeWidth={1.6} />
+        <WxIcon size={46} strokeWidth={1.6} />
         <div style={{ flex: 1 }}>
           <div className="wx-temp">{Math.round(weather.temp)}°</div>
           <div className="wx-desc">{desc} · {loc.label}</div>
@@ -233,11 +233,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="search-bar">
-        <Search size={17} />
-        <input placeholder="Search" value={query} onChange={e => setQuery(e.target.value)} />
-      </div>
-
       {sync.error && (
         <div className="card" style={{ borderColor: 'var(--red)', background: 'var(--red-bg)', color: 'var(--red)', fontSize: 13, fontWeight: 600 }}>
           Sync problem: {sync.error}
@@ -245,6 +240,11 @@ export default function Dashboard() {
       )}
 
       <WeatherCard />
+
+      <div className="search-bar">
+        <Search size={17} />
+        <input placeholder="Search" value={query} onChange={e => setQuery(e.target.value)} />
+      </div>
 
       <div className="section-head" style={{ marginTop: 18 }}>
         <h2>My Plants</h2>
