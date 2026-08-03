@@ -8,7 +8,7 @@ import {
   WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown,
 } from '../lib/schedule.js'
 import { generatePlantIcon } from '../lib/gemini.js'
-import { PlantIcon } from './PlantIcons.jsx'
+import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
 
 export function PlantDetailModal({ plant, onClose }) {
@@ -19,6 +19,9 @@ export function PlantDetailModal({ plant, onClose }) {
   if (!cat) return null
 
   const lat = state.settings.location?.lat
+  const wLeft = waterDaysLeft(plant, lat)
+  const mLeft = mistDaysLeft(plant)
+  const fLeft = fertilizeDaysLeft(plant)
   const zone = state.plan.zones.find(z => z.id === plant.zoneId)
   const customIcon = icons[plant.id]
   const geminiKey = state.settings.geminiKey
@@ -65,20 +68,39 @@ export function PlantDetailModal({ plant, onClose }) {
           <div className="row-list">
             <div className="row">
               <div className="row-icon"><Droplets size={18} /></div>
-              <div className="grow">Water every <b>{waterIntervalDays(plant, lat)} days</b><small>Next: {daysLeftLabel(waterDaysLeft(plant, lat))}</small></div>
-              <button className="btn btn-primary btn-sm" onClick={() => markWatered(plant.id)}>Watered</button>
+              <div className="grow">Water every <b>{waterIntervalDays(plant, lat)} days</b><small>Next: {daysLeftLabel(wLeft)}</small></div>
+              {/* an action, not a status: urgent when due, quiet when it isn't */}
+              <button
+                className={`btn btn-sm ${wLeft <= 0 ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => markWatered(plant.id)}
+              >
+                <WateringCan style={{ width: 17, height: 17 }} />
+                {wLeft <= 0 ? 'Water now' : 'Log water'}
+              </button>
             </div>
             {cat.mist && (
               <div className="row">
-                <div className="row-icon"><Droplets size={18} /></div>
-                <div className="grow">Mist every <b>{cat.mist} days</b><small>Next: {daysLeftLabel(mistDaysLeft(plant))}</small></div>
-                <button className="btn btn-mint btn-sm" onClick={() => markMisted(plant.id)}>Misted</button>
+                <div className="row-icon"><SprayBottle style={{ width: 20, height: 20 }} /></div>
+                <div className="grow">Mist every <b>{cat.mist} days</b><small>Next: {daysLeftLabel(mLeft)}</small></div>
+                <button
+                  className={`btn btn-sm ${mLeft !== null && mLeft <= 0 ? 'btn-mint' : 'btn-ghost'}`}
+                  onClick={() => markMisted(plant.id)}
+                >
+                  <SprayBottle style={{ width: 17, height: 17 }} />
+                  {mLeft !== null && mLeft <= 0 ? 'Mist now' : 'Log mist'}
+                </button>
               </div>
             )}
             <div className="row">
               <div className="row-icon"><Sparkles size={18} /></div>
-              <div className="grow">Fertilize every <b>{cat.fertilize} days</b><small>Next: {daysLeftLabel(fertilizeDaysLeft(plant))}</small></div>
-              <button className="btn btn-ghost btn-sm" onClick={() => markFertilized(plant.id)}>Done</button>
+              <div className="grow">Fertilize every <b>{cat.fertilize} days</b><small>Next: {daysLeftLabel(fLeft)}</small></div>
+              <button
+                className={`btn btn-sm ${fLeft !== null && fLeft <= 0 ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => markFertilized(plant.id)}
+              >
+                <Sparkles size={15} />
+                {fLeft !== null && fLeft <= 0 ? 'Feed now' : 'Log feed'}
+              </button>
             </div>
             <div className="row">
               <div className="row-icon"><Sun size={18} /></div>
