@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles } from 'lucide-react'
+import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles, ArrowDownAZ, ArrowDownZA } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, RAIN_ASK_MM } from '../lib/schedule.js'
 import { describeWeatherCode } from '../lib/weather.js'
@@ -66,11 +66,12 @@ function WeatherCard() {
 }
 
 export default function Dashboard() {
-  const { state, weather, sync, markWatered, markMisted, markFertilized } = useStore()
+  const { state, weather, sync, setSettings, markWatered, markMisted, markFertilized } = useStore()
   const [query, setQuery] = useState('')
   const [rainPlant, setRainPlant] = useState(null)
   const [detailPlant, setDetailPlant] = useState(null)
   const [showNotifs, setShowNotifs] = useState(false)
+  const sortDesc = state.settings.plantSort === 'za'
   const [notifTab, setNotifTab] = useState('water')
   const bellRef = useRef(null)
   const lat = state.settings.location?.lat
@@ -146,8 +147,14 @@ export default function Dashboard() {
           (cat?.name || '').toLowerCase().includes(q) ||
           (cat?.latin || '').toLowerCase().includes(q)
       })
-      .sort((a, b) => waterDaysLeft(a, lat) - waterDaysLeft(b, lat))
-  }, [state.plants, query, lat, weather])
+      .sort((a, b) => {
+        const an = a.nickname || getCatalogPlant(a.catalogId)?.name || ''
+        const bn = b.nickname || getCatalogPlant(b.catalogId)?.name || ''
+        // locale-aware so accents and numbers order the way a reader expects
+        const cmp = an.localeCompare(bn, undefined, { sensitivity: 'base', numeric: true })
+        return sortDesc ? -cmp : cmp
+      })
+  }, [state.plants, query, lat, weather, sortDesc])
 
   // keep modal targets pointing at fresh plant objects
   const freshRain = rainPlant && state.plants.find(p => p.id === rainPlant.id)
@@ -241,7 +248,17 @@ export default function Dashboard() {
 
       <div className="section-head" style={{ marginTop: 18 }}>
         <h2>My Plants</h2>
-        <span className="sub">{state.plants.length} total</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="sub">{state.plants.length} total</span>
+          <button
+            className="chip"
+            aria-label={sortDesc ? 'Sorted Z to A — tap for A to Z' : 'Sorted A to Z — tap for Z to A'}
+            onClick={() => setSettings({ plantSort: sortDesc ? 'az' : 'za' })}
+          >
+            {sortDesc ? <ArrowDownZA size={14} /> : <ArrowDownAZ size={14} />}
+            {sortDesc ? 'Z–A' : 'A–Z'}
+          </button>
+        </div>
       </div>
 
       {plants.length === 0 ? (
