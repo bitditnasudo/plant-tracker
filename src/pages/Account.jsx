@@ -261,24 +261,34 @@ export default function Account() {
             onChange={e => setSettings({ perenualKey: e.target.value.trim() })}
           />
         </div>
-        {state.settings.perenualKey && (
-          <div style={{ marginTop: 10 }}>
+        <div className="row-list" style={{ marginTop: 6, borderTop: '1px solid var(--border)' }}>
+          <div className="row" style={{ borderBottom: 'none' }}>
+            <div className="row-icon"><Wind size={18} /></div>
+            <div className="grow">
+              Wind classification
+              <small>
+                Runs automatically a few seconds after you add plants, covering every plant on
+                your dashboard that doesn’t have one yet.
+                {state.settings.classificationsBackfilledAt &&
+                  ` Last run: ${new Date(state.settings.classificationsBackfilledAt).toLocaleString()}`}
+              </small>
+            </div>
             <button className="btn btn-ghost btn-sm" onClick={() => backfillClassifications({ force: true })} disabled={backfill.running}>
-              {backfill.running ? <Loader2 size={14} className="spin" /> : <Wind size={14} />}
-              {backfill.running ? `Checking ${backfill.done}/${backfill.total}…` : 'Re-check wind classifications'}
+              {backfill.running ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+              {backfill.running ? `${backfill.done}/${backfill.total}` : 'Redo all'}
             </button>
-            {backfill.results.length > 0 && (
-              <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.7 }}>
-                {backfill.results.map(r => (
-                  <div key={r.name}>
-                    {r.name}: <b>{r.cls}</b>{r.via === 'taxonomy' && ' (from name — species data not on the free tier)'}
-                  </div>
-                ))}
+          </div>
+        </div>
+        {backfill.results.length > 0 && (
+          <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.7 }}>
+            {backfill.results.map((r, i) => (
+              <div key={`${r.name}-${i}`}>
+                {r.name}: <b>{r.cls}</b> <span style={{ opacity: .75 }}>· {r.via}</span>
               </div>
-            )}
-            {backfill.error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 6 }}>{backfill.error}</p>}
+            ))}
           </div>
         )}
+        {backfill.error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 6 }}>{backfill.error}</p>}
       </div>
 
       <div className="card">
