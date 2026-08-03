@@ -38,7 +38,15 @@
   --shell-w: 440px;
 }
 
-html { font-size: 16px; -webkit-text-size-adjust: 100%; background: var(--bg-top); }
+html {
+  font-size: 16px; background: var(--bg-top);
+  /* never reflow text on rotation, never bounce past the edges */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
+  /* 'manipulation' keeps scrolling but drops the double-tap-to-zoom gesture */
+  touch-action: manipulation;
+}
 
 body {
   font-family: var(--font-body);
@@ -49,6 +57,7 @@ body {
   color: var(--text);
   min-height: 100dvh;
   line-height: 1.5;
+  overscroll-behavior: none;
 }
 
 body::before {
@@ -197,7 +206,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   background: var(--surface); backdrop-filter: blur(10px);
   border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow-pop);
-  padding: 14px; max-height: 60vh; overflow-y: auto;
+  padding: 14px; max-height: 60vh; overflow-y: auto; overscroll-behavior: contain;
   animation: bubbleIn .18s cubic-bezier(.3, 1.2, .5, 1);
   transform-origin: top right;
 }
@@ -359,6 +368,8 @@ h1, h2, h3 { font-family: var(--font-display); }
   background: var(--bg-bottom); width: 100%; max-width: 440px;
   border-radius: 26px 26px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom, 0px));
   max-height: 88dvh; overflow-y: auto; animation: sheetUp .25s cubic-bezier(.3, 1.1, .5, 1);
+  /* scrolling the sheet must never drag the page behind it */
+  overscroll-behavior: contain;
 }
 @keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet-handle { width: 44px; height: 5px; border-radius: 3px; background: var(--mint); opacity: .5; margin: 0 auto 14px; }
