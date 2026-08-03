@@ -32,13 +32,18 @@ export function ManualPlantForm({ onCancel, onCreate }) {
   const [outdoor, setOutdoor] = useState(false)
   const [icon, setIcon] = useState('leafVine')
   const [details, setDetails] = useState('')
-  const [iconTouched, setIconTouched] = useState(false)
+
+  // anything you've set yourself is never overwritten by the lookup
+  const [touched, setTouched] = useState(() => new Set())
+  const mark = f => setTouched(t => new Set(t).add(f))
+  const mine = f => touched.has(f)
 
   const effWinter = winter ?? Math.min(60, Math.round(summer * 1.8))
 
-  const pickCategory = c => {
+  const pickCategory = (c, isMine = true) => {
     setCategory(c)
-    if (!iconTouched) setIcon(ICON_SUGGESTION[c] || 'leafVine')
+    if (isMine) mark('type')
+    if (!mine('icon')) setIcon(ICON_SUGGESTION[c] || 'leafVine')
   }
 
   const runLookup = async () => {
@@ -46,15 +51,24 @@ export function ManualPlantForm({ onCancel, onCreate }) {
     setLookupError(null)
     try {
       const r = await lookupPlantCare(geminiKey, { name: name.trim(), latin: latin.trim() })
-      setSummer(Math.max(1, Math.min(120, r.waterSummer)))
-      setWinter(Math.max(1, Math.min(120, r.waterWinter)))
-      setMist(r.mistDays ? String(Math.max(1, Math.min(60, r.mistDays))) : '')
-      setFertilize(Math.max(7, Math.min(365, r.fertilizeDays)))
-      if (['direct', 'partial', 'shade'].includes(r.light)) setLight(r.light)
-      if (r.category) pickCategory(r.category)
-      setOutdoor(!!r.outdoor)
-      if (r.appearance) setDetails(r.appearance)
-      setLookup({ confidence: r.confidence })
+      const filled = []
+      const kept = []
+      // only completes the gaps — whatever you already set stays yours
+      const fill = (field, label, apply) => {
+        if (mine(field)) { kept.push(label); return }
+        apply(); filled.push(label)
+      }
+      fill('water', 'watering', () => {
+        setSummer(Math.max(1, Math.min(120, r.waterSummer)))
+        setWinter(Math.max(1, Math.min(120, r.waterWinter)))
+      })
+      fill('mist', 'misting', () => setMist(r.mistDays ? String(Math.max(1, Math.min(60, r.mistDays))) : ''))
+      fill('feed', 'feeding', () => setFertilize(Math.max(7, Math.min(365, r.fertilizeDays))))
+      fill('light', 'light', () => { if (['direct', 'partial', 'shade'].includes(r.light)) setLight(r.light) })
+      fill('type', 'type', () => { if (r.category) pickCategory(r.category, false) })
+      fill('outdoor', 'indoor/outdoor', () => setOutdoor(!!r.outdoor))
+      fill('details', 'appearance', () => { if (r.appearance) setDetails(r.appearance) })
+      setLookup({ confidence: r.confidence, filled, kept })
     } catch (e) {
       setLookupError(e.message)
     } finally {
@@ -106,17 +120,22 @@ export function ManualPlantForm({ onCancel, onCreate }) {
       {geminiKey ? (
         <div className="field">
           <button className="btn btn-mint btn-block" disabled={!name.trim() || looking} onClick={runLookup}>
-            {looking ? <Loader2 size={16} className="spin" /> : <Wand2 size={16} />}
-            {looking ? 'Looking it up…' : "Don't know the details? Look them up"}
+            {looking ? <Loader2 size={16} className="spin" /> : null}
+            {looking ? 'Looking it up…' : 'Complete with Gemini 🪄'}
           </button>
-          {lookup && (
-            <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
-              Filled in below{lookup.confidence === 'low' && ' — but flagged as a guess'}.
-              {lookup.confidence === 'low'
-                ? ' Treat every number as a starting point and correct it once you have watched the plant.'
-                : ' These are typical figures, not gospel — adjust anything you know better.'}
-            </p>
-          )}
+          <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+            {lookup ? (
+              <>
+                Filled in <b>{lookup.filled.join(', ') || 'nothing — you had it all'}</b>
+                {lookup.kept.length > 0 && <> · kept your <b>{lookup.kept.join(', ')}</b></>}
+                {lookup.confidence === 'low'
+                  ? ' — flagged as a guess, so check it against the plant.'
+                  : '. Typical figures, not gospel — change anything you know better.'}
+              </>
+            ) : (
+              'Fill in whatever you know, then let Gemini complete the rest from the name. Anything you set yourself is left alone.'
+            )}
+          </p>
           {lookupError && <p style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{lookupError}</p>}
         </div>
       ) : (
@@ -138,7 +157,7 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <label>Ideal light</label>
         <div className="seg">
           {['direct', 'partial', 'shade'].map(l => (
-            <button key={l} className={light === l ? 'active' : ''} onClick={() => setLight(l)}>{LIGHT_LABELS[l]}</button>
+            <button key={l} className={light === l ? 'active' : ''} onClick={() => { setLight(l); mark('light') }}>{LIGHT_LABELS[l]}</button>
           ))}
         </div>
       </div>
@@ -147,13 +166,13 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <div className="field" style={{ flex: 1 }}>
           <label>Water every … days *</label>
           <input type="number" min="1" max="120" inputMode="numeric" value={summer}
-            onChange={e => setSummer(Math.max(1, Math.min(120, +e.target.value || 1)))} />
+            onChange={e => { setSummer(Math.max(1, Math.min(120, +e.target.value || 1))); mark('water') }} />
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label>…in winter</label>
           <input type="number" min="1" max="120" inputMode="numeric"
             placeholder={String(effWinter)} value={winter ?? ''}
-            onChange={e => setWinter(e.target.value === '' ? null : Math.max(1, Math.min(120, +e.target.value)))} />
+            onChange={e => { setWinter(e.target.value === '' ? null : Math.max(1, Math.min(120, +e.target.value))); mark('water') }} />
         </div>
       </div>
       <p className="muted" style={{ fontSize: 11.5, marginTop: -6, marginBottom: 14 }}>
@@ -165,20 +184,20 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <div className="field" style={{ flex: 1 }}>
           <label>Mist every … days</label>
           <input type="number" min="1" max="60" inputMode="numeric" placeholder="never"
-            value={mist} onChange={e => setMist(e.target.value)} />
+            value={mist} onChange={e => { setMist(e.target.value); mark('mist') }} />
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label>Feed every … days</label>
           <input type="number" min="7" max="365" inputMode="numeric" value={fertilize}
-            onChange={e => setFertilize(+e.target.value || 30)} />
+            onChange={e => { setFertilize(+e.target.value || 30); mark('feed') }} />
         </div>
       </div>
 
       <div className="field">
         <label>Can it live outdoors?</label>
         <div className="seg">
-          <button className={!outdoor ? 'active' : ''} onClick={() => setOutdoor(false)}>Indoors only</button>
-          <button className={outdoor ? 'active' : ''} onClick={() => setOutdoor(true)}>Can go outside</button>
+          <button className={!outdoor ? 'active' : ''} onClick={() => { setOutdoor(false); mark('outdoor') }}>Indoors only</button>
+          <button className={outdoor ? 'active' : ''} onClick={() => { setOutdoor(true); mark('outdoor') }}>Can go outside</button>
         </div>
         <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
           Only plants that can go outside get wind adjustment and rain confirmations.
@@ -190,7 +209,7 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <div className="catalog-grid">
           {ICON_KEYS.map(k => (
             <div key={k} className={`catalog-item${icon === k ? ' sel' : ''}`}
-              onClick={() => { setIcon(k); setIconTouched(true) }}>
+              onClick={() => { setIcon(k); mark('icon') }}>
               <PlantIcon icon={k} />
             </div>
           ))}
@@ -200,7 +219,7 @@ export function ManualPlantForm({ onCancel, onCreate }) {
       <div className="field">
         <label>What does it look like? (optional — improves the generated icon)</label>
         <input value={details} placeholder="e.g. clusters of small red and yellow flowers"
-          onChange={e => setDetails(e.target.value)} />
+          onChange={e => { setDetails(e.target.value); mark('details') }} />
       </div>
 
       <button className="btn btn-primary btn-block" disabled={!name.trim()} onClick={create}>
