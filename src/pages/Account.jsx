@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { MapPin, LocateFixed, KeyRound, Download, Upload, Info, Database, Loader2, Leaf, Search, RotateCcw, Cloud, CloudOff, RefreshCw, BellRing, Wand2, Wind } from 'lucide-react'
-import { useStore, APP_VERSION } from '../lib/store.jsx'
+import { useStore, APP_VERSION, BUILD_COMMIT, BUILD_DATE } from '../lib/store.jsx'
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { getCatalogPlant } from '../lib/catalog.js'
@@ -340,7 +340,14 @@ export default function Account() {
           </div>
           <div className="row">
             <div className="row-icon"><Info size={18} /></div>
-            <div className="grow">Version<small>Plant Tracker v{APP_VERSION} · weather by Open-Meteo · plant care data bundled from open sources</small></div>
+            <div className="grow">
+              Version <b>{APP_VERSION}</b>
+              <small>
+                Release {APP_VERSION.split('.')[1]} · build {BUILD_COMMIT}
+                {BUILD_DATE && ` · ${new Date(BUILD_DATE).toLocaleDateString()}`}
+                <br />weather by Open-Meteo · care data from Perenual and bundled open sources
+              </small>
+            </div>
           </div>
         </div>
       </div>

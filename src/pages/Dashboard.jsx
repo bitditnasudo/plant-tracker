@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
-import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap } from 'lucide-react'
+import { useMemo, useState, useEffect, useRef } from 'react'
+import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
-import { waterDaysLeft, RAIN_ASK_MM } from '../lib/schedule.js'
+import { waterDaysLeft, fertilizeDaysLeft, RAIN_ASK_MM } from '../lib/schedule.js'
 import { describeWeatherCode } from '../lib/weather.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { PlantCard } from '../components/PlantCard.jsx'
@@ -70,7 +70,38 @@ export default function Dashboard() {
   const [query, setQuery] = useState('')
   const [rainPlant, setRainPlant] = useState(null)
   const [detailPlant, setDetailPlant] = useState(null)
+  const [showNotifs, setShowNotifs] = useState(false)
+  const bellRef = useRef(null)
   const lat = state.settings.location?.lat
+
+  // what's actually due today, straight from the schedule
+  const { dueWater, dueFeed } = useMemo(() => {
+    const water = []
+    const feed = []
+    for (const plant of state.plants) {
+      const cat = getCatalogPlant(plant.catalogId)
+      if (!cat) continue
+      const w = waterDaysLeft(plant, lat)
+      if (w <= 0) water.push({ plant, cat, left: w })
+      const f = fertilizeDaysLeft(plant)
+      if (f !== null && f <= 0) feed.push({ plant, cat, left: f })
+    }
+    const byUrgency = (a, b) => a.left - b.left
+    return { dueWater: water.sort(byUrgency), dueFeed: feed.sort(byUrgency) }
+  }, [state.plants, lat, weather])
+
+  // dismiss the bubble on an outside tap or Escape
+  useEffect(() => {
+    if (!showNotifs) return
+    const onDown = e => { if (bellRef.current && !bellRef.current.contains(e.target)) setShowNotifs(false) }
+    const onKey = e => { if (e.key === 'Escape') setShowNotifs(false) }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [showNotifs])
 
   const plants = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -97,10 +128,67 @@ export default function Dashboard() {
           <small>Welcome,</small>
           <b>{state.profile.name || 'Plant lover'}!</b>
         </div>
-        <button className="icon-btn" aria-label="Notifications">
-          <Bell size={19} />
-          {plants.some(p => waterDaysLeft(p, lat) <= 0) && <span className="dot" />}
-        </button>
+        <div className="notif-wrap" ref={bellRef}>
+          <button
+            className="icon-btn" aria-label="Notifications"
+            aria-expanded={showNotifs}
+            onClick={() => setShowNotifs(v => !v)}
+          >
+            <Bell size={19} />
+            {(dueWater.length > 0 || dueFeed.length > 0) && <span className="dot" />}
+          </button>
+
+          {showNotifs && (
+            <div className="notif-bubble" role="dialog" aria-label="Today's tasks">
+              {dueWater.length === 0 && dueFeed.length === 0 ? (
+                <div className="notif-empty">
+                  Nothing due today — every plant is happy. 🌿
+                </div>
+              ) : (
+                <>
+                  {dueWater.length > 0 && (
+                    <>
+                      <h4>Needs watering</h4>
+                      {dueWater.map(({ plant, cat, left }) => (
+                        <div
+                          key={plant.id} className="notif-item water"
+                          onClick={() => { setShowNotifs(false); setDetailPlant(plant) }}
+                        >
+                          <Droplets size={17} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="n-name">{plant.nickname || cat?.name}</div>
+                            <div className="n-sub">
+                              {left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {dueFeed.length > 0 && (
+                    <>
+                      <h4>Needs fertilizing</h4>
+                      {dueFeed.map(({ plant, cat, left }) => (
+                        <div
+                          key={plant.id} className="notif-item feed"
+                          onClick={() => { setShowNotifs(false); setDetailPlant(plant) }}
+                        >
+                          <Sparkles size={17} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="n-name">{plant.nickname || cat?.name}</div>
+                            <div className="n-sub">
+                              {left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="search-bar">

@@ -12,7 +12,10 @@ import { syncCalendarReminders, clearCalendarReminders } from './calendarSync.js
 import { fetchWindSensitivity } from './perenual.js'
 import { deriveWindSensitivityFromCatalog } from './schedule.js'
 
-export const APP_VERSION = '1.0.0'
+// injected by vite.config.js at build time
+export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+export const BUILD_COMMIT = typeof __BUILD_COMMIT__ !== 'undefined' ? __BUILD_COMMIT__ : 'dev'
+export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : null
 const LS_KEY = 'plant-tracker:v1'
 const SYNC_META_KEY = 'plant-tracker:sync' // {fileId, savedAt of last pushed/applied payload}
 // Daily wind history is a device-local cache, not user data: Open-Meteo
