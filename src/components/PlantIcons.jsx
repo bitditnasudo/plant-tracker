@@ -297,6 +297,8 @@ const ICONS = {
   leafVine: LeafVine, grassy: Grassy, palm: Palm,
 }
 
+export const ICON_KEYS = Object.keys(ICONS)
+
 export function PlantIcon({ icon, ...props }) {
   const Cmp = ICONS[icon] || Sprout
   return <Cmp {...props} />

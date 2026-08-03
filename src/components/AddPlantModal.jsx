@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Search, ChevronLeft, Droplets, Sun, Sparkles, Globe, Loader2 } from 'lucide-react'
+import { Search, ChevronLeft, Droplets, Sun, Sparkles, Globe, Loader2, PencilLine } from 'lucide-react'
 import { formatISO, subDays } from 'date-fns'
 import { useStore } from '../lib/store.jsx'
 import { CATALOG, CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
 import { searchPerenual, fetchPerenualEntry, FREE_TIER_MAX_ID } from '../lib/perenual.js'
 import { PlantIcon } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
+import { ManualPlantForm } from './ManualPlantForm.jsx'
 
 const POT_TYPES = ['terracotta pot', 'ceramic pot', 'hanging pot', 'glass vase', 'shallow bonsai dish', 'grow bag', 'glass terrarium', 'ceramic bowl', 'small ceramic pot', 'clear orchid pot']
 const POT_COLORS = ['warm orange', 'cream white', 'mint green', 'sage green', 'charcoal grey', 'sand beige', 'clear']
@@ -21,6 +22,7 @@ export function AddPlantModal({ onClose }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [selected, setSelected] = useState(null)
+  const [manual, setManual] = useState(false)
   const [nickname, setNickname] = useState('')
   const [potType, setPotType] = useState(POT_TYPES[0])
   const [potColor, setPotColor] = useState(POT_COLORS[0])
@@ -122,7 +124,12 @@ export function AddPlantModal({ onClose }) {
       <div className="sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
 
-        {!selected ? (
+        {manual ? (
+          <ManualPlantForm
+            onCancel={() => setManual(false)}
+            onCreate={entry => { setManual(false); pick(entry) }}
+          />
+        ) : !selected ? (
           <>
             <h2>Add a plant</h2>
             <div className="search-bar" style={{ marginBottom: 10 }}>
@@ -181,6 +188,16 @@ export function AddPlantModal({ onClose }) {
               )
             )}
             {onlineError && <p className="center" style={{ color: 'var(--red)', marginTop: 10, fontSize: 12.5 }}>{onlineError}</p>}
+
+            {/* last resort, and the only one that always works */}
+            <button
+              className={`btn btn-block ${results.length === 0 ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ marginTop: 14 }}
+              onClick={() => setManual(true)}
+            >
+              <PencilLine size={16} />
+              {results.length === 0 ? `Add “${query.trim() || 'a plant'}” yourself` : 'Not listed? Add it yourself'}
+            </button>
           </>
         ) : (
           <>
@@ -192,7 +209,9 @@ export function AddPlantModal({ onClose }) {
               <div>
                 <h2 style={{ marginBottom: 0 }}>{selected.name}</h2>
                 <div className="muted" style={{ fontStyle: 'italic' }}>{selected.latin}</div>
-                {selected.isCustom && <span className="tag info" style={{ marginTop: 4 }}>from online database</span>}
+                {selected.source === 'manual'
+                  ? <span className="tag ok" style={{ marginTop: 4 }}>your own entry</span>
+                  : selected.isCustom && <span className="tag info" style={{ marginTop: 4 }}>from online database</span>}
               </div>
             </div>
 
