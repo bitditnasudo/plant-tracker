@@ -72,16 +72,29 @@ export async function lookupPlantCare(apiKey, { name, latin }) {
 // Adapted from the user's prompt template. No glass panel in the image itself:
 // the app's plant tile already provides the frosted rounded-square panel, so a
 // panel inside the render would double-frame the icon and shrink the plant.
-export function buildIconPrompt({ name, details, pot, potColor }) {
-  return `A single, centralized, stylized matte 3D render of ${name} with ${details} in a ${pot} of ${potColor} color. ` +
+export function buildIconPrompt({ name, details, material, potColor, bloom }) {
+  // the pot: material always stated, colour only when it isn't the raw material
+  const potPhrase = potColor?.render
+    ? `${material.render}, coloured ${potColor.render}`
+    : `${material.render} in its own natural colour`
+
+  // the blooms: an explicit choice wins over anything the model would infer
+  const bloomPhrase = bloom?.id === 'none'
+    ? `This specimen is not in flower — render foliage only, with no blooms or buds.`
+    : bloom?.render
+      ? `Its flowers are ${bloom.render}: render every bloom and bud in that exact colour, and no other flower colour.`
+      : `If the species flowers, render the blooms in its true natural colours.`
+
+  return `A single, centralized, stylized matte 3D render of ${name} with ${details}, planted in ${potPhrase}. ` +
     `The potted plant fills most of the frame, set against a plain, soft green-to-white gradient background. ` +
     `Nothing else is in the image: no glass panel, no frame, no border, no decorative shapes, no ornaments, ` +
     `no background objects — only the potted plant. ` +
     `The texture is friendly, tactile, and clean, like soft clay, with a soft-focus depth of field. ` +
-    `Color palette for the background, pot and foliage tones only: olive green #40916C, mint green #74C69D, ` +
+    `${bloomPhrase} ` +
+    `Use these palette colours for the BACKGROUND AND FOLIAGE ONLY: olive green #40916C, mint green #74C69D, ` +
     `pale beige-green #D8F3DC, deep forest green #1B4332, white #FFFFFF. ` +
-    `Important: if the plant has flowers or buds, render them in the species' true natural colors ` +
-    `(vivid pinks, reds, oranges, yellows, purples or whites as appropriate) — never recolor blooms green or to the palette. ` +
+    `The pot and flower colours specified above override the palette and must be rendered exactly as stated — ` +
+    `never recolour them green or to the background palette. ` +
     `Square image, no text.`
 }
 

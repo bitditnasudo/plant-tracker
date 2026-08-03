@@ -10,6 +10,7 @@ import {
 import { generatePlantIcon } from '../lib/gemini.js'
 import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
+import { POT_MATERIALS, POT_COLORS, BLOOM_COLORS, resolveAppearance } from '../lib/potOptions.js'
 
 export function PlantDetailModal({ plant, onClose }) {
   const { state, icons, updatePlant, removePlant, markWatered, markMisted, markFertilized, saveIcon } = useStore()
@@ -32,8 +33,10 @@ export function PlantDetailModal({ plant, onClose }) {
     setGenerating(true)
     setGenError(null)
     try {
+      const a = resolveAppearance(plant, cat)
       const dataUrl = await generatePlantIcon(geminiKey, {
-        name: cat.name, details: cat.details, pot: plant.potType || cat.pot, potColor: plant.potColor || cat.potColor,
+        name: cat.name, details: cat.details,
+        material: a.material, potColor: a.color, bloom: a.bloom,
       })
       await saveIcon(plant.id, dataUrl)
     } catch (e) {
@@ -230,6 +233,37 @@ export function PlantDetailModal({ plant, onClose }) {
             </div>
           </div>
         )}
+
+        {(() => {
+          const a = resolveAppearance(plant, cat)
+          return (
+            <>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div className="field" style={{ flex: 1 }}>
+                  <label>Pot material</label>
+                  <select value={a.material.id} onChange={e => updatePlant(plant.id, { potMaterial: e.target.value })}>
+                    {POT_MATERIALS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ flex: 1 }}>
+                  <label>Pot colour</label>
+                  <select value={a.color.id} onChange={e => updatePlant(plant.id, { potColorId: e.target.value })}>
+                    {POT_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="field">
+                <label>Flower colour</label>
+                <select value={a.bloom.id} onChange={e => updatePlant(plant.id, { bloomColor: e.target.value })}>
+                  {BLOOM_COLORS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+                </select>
+                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                  These three decide how the icon is drawn — change them, then regenerate below.
+                </p>
+              </div>
+            </>
+          )
+        })()}
 
         <div className="field">
           <label>Plant icon</label>

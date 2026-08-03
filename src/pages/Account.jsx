@@ -4,6 +4,7 @@ import { useStore, APP_VERSION, BUILD_COMMIT, BUILD_DATE } from '../lib/store.js
 import { searchCity, getBrowserLocation } from '../lib/weather.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { getCatalogPlant } from '../lib/catalog.js'
+import { resolveAppearance } from '../lib/potOptions.js'
 import { Avatar } from '../components/PlantIcons.jsx'
 
 // the little guy — pixel-art Claude critter for the footer
@@ -50,8 +51,10 @@ export default function Account() {
       const cat = getCatalogPlant(p.catalogId)
       if (!cat) continue
       try {
+        const a = resolveAppearance(p, cat)
         const url = await generatePlantIcon(state.settings.geminiKey, {
-          name: cat.name, details: cat.details, pot: p.potType || cat.pot, potColor: p.potColor || cat.potColor,
+          name: cat.name, details: cat.details,
+          material: a.material, potColor: a.color, bloom: a.bloom,
         })
         await saveIcon(p.id, url)
         done++

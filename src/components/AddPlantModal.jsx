@@ -6,10 +6,9 @@ import { CATALOG, CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
 import { searchPerenual, fetchPerenualEntry, FREE_TIER_MAX_ID } from '../lib/perenual.js'
 import { PlantIcon } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
+import { POT_MATERIALS, POT_COLORS, BLOOM_COLORS, resolveAppearance } from '../lib/potOptions.js'
 import { ManualPlantForm } from './ManualPlantForm.jsx'
 
-const POT_TYPES = ['terracotta pot', 'ceramic pot', 'hanging pot', 'glass vase', 'shallow bonsai dish', 'grow bag', 'glass terrarium', 'ceramic bowl', 'small ceramic pot', 'clear orchid pot']
-const POT_COLORS = ['warm orange', 'cream white', 'mint green', 'sage green', 'charcoal grey', 'sand beige', 'clear']
 const LAST_WATERED = [
   { label: 'Today', days: 0 },
   { label: 'Yesterday', days: 1 },
@@ -24,8 +23,9 @@ export function AddPlantModal({ onClose }) {
   const [selected, setSelected] = useState(null)
   const [manual, setManual] = useState(false)
   const [nickname, setNickname] = useState('')
-  const [potType, setPotType] = useState(POT_TYPES[0])
-  const [potColor, setPotColor] = useState(POT_COLORS[0])
+  const [potMaterial, setPotMaterial] = useState('terracotta')
+  const [potColorId, setPotColorId] = useState('natural')
+  const [bloomColor, setBloomColor] = useState('none')
   const [isOutside, setIsOutside] = useState(false)
   const [watered, setWatered] = useState(0)
   const [wateredDate, setWateredDate] = useState('') // used when watered === 'other'
@@ -48,8 +48,10 @@ export function AddPlantModal({ onClose }) {
 
   const pick = cat => {
     setSelected(cat)
-    setPotType(POT_TYPES.includes(cat.pot) ? cat.pot : POT_TYPES[0])
-    setPotColor(POT_COLORS.includes(cat.potColor) ? cat.potColor : POT_COLORS[0])
+    const a = resolveAppearance({}, cat)
+    setPotMaterial(a.material.id)
+    setPotColorId(a.color.id)
+    setBloomColor(a.bloom.id)
     setIsOutside(false)
     setZoneId(null)
   }
@@ -104,7 +106,7 @@ export function AddPlantModal({ onClose }) {
       id: crypto.randomUUID(),
       catalogId: selected.id,
       nickname: nickname.trim(),
-      potType, potColor,
+      potMaterial, potColorId, bloomColor,
       isOutside: selected.outdoor ? isOutside : false,
       // auto-derived at import; null falls back to the catalogue rule at read time
       windSensitivity: selected.windSensitivity || null,
@@ -255,17 +257,23 @@ export function AddPlantModal({ onClose }) {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <div className="field" style={{ flex: 1 }}>
-                <label>Pot</label>
-                <select value={potType} onChange={e => setPotType(e.target.value)}>
-                  {POT_TYPES.map(p => <option key={p}>{p}</option>)}
+                <label>Pot material</label>
+                <select value={potMaterial} onChange={e => setPotMaterial(e.target.value)}>
+                  {POT_MATERIALS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </div>
               <div className="field" style={{ flex: 1 }}>
-                <label>Pot color</label>
-                <select value={potColor} onChange={e => setPotColor(e.target.value)}>
-                  {POT_COLORS.map(p => <option key={p}>{p}</option>)}
+                <label>Pot colour</label>
+                <select value={potColorId} onChange={e => setPotColorId(e.target.value)}>
+                  {POT_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
+            </div>
+            <div className="field">
+              <label>Flower colour — used when generating the icon</label>
+              <select value={bloomColor} onChange={e => setBloomColor(e.target.value)}>
+                {BLOOM_COLORS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+              </select>
             </div>
             {selected.outdoor && (
               <div className="field">
