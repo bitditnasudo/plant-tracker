@@ -156,7 +156,12 @@ export function PlantDetailModal({ plant, onClose }) {
               <div className="card" style={{ fontSize: 12.5, marginBottom: 14 }}>
                 <b>How {b.effective} days was calculated</b>
                 <div className="muted" style={{ marginTop: 4, lineHeight: 1.6 }}>
-                  Base interval <b>{b.base} days</b>
+                  Species interval <b>{b.base} days</b>
+                  {b.capApplied && (
+                    <> · that figure assumes sheltered ground, so an outdoor pot at{' '}
+                      <b>{WIND_SENSITIVITY[sens].label.toLowerCase()}</b> sensitivity is capped
+                      at <b>{b.capped} days</b></>
+                  )}
                   {!plant.isOutside && <> · indoors, so wind is never applied</>}
                   {plant.isOutside && !b.wind.applies && <> · no wind data yet for this location</>}
                   {plant.isOutside && b.wind.applies && (

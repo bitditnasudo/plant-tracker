@@ -67,6 +67,37 @@ and full care data only covers roughly the first 3,000 species IDs — results
 beyond that are tagged "care data estimated" and import with sensible
 defaults you can edit (watering interval + light) before saving.
 
+## How the watering interval is calculated
+
+For **outdoor** plants, in this order (all constants in `src/lib/schedule.js`):
+
+1. **Species base** — Perenual's `watering_general_benchmark`, or the bundled
+   catalogue figure.
+2. **Outdoor-pot ceiling** (`OUTDOOR_POT_CAP_DAYS`) — the species figure
+   assumes sheltered ground. Container growers report far shorter intervals,
+   so an outdoor pot is capped at **4 days** (high wind-sensitivity) or
+   **7 days** (normal); drought-adapted plants are exempt. Doubles out of
+   growing season. The cap only ever shortens.
+3. **Wind** (`WIND_TIERS`) — average daily wind since that plant's last
+   watering: <10 km/h no change, 10–20 km/h −17.5%, >20 km/h −32.5%.
+   Wind history comes from Open-Meteo with `past_days=30`, cached locally, so
+   it backfills gaps and re-tightens the estimate as a plant waits.
+4. **Wind sensitivity** (`WIND_SENSITIVITY`) multiplies that cut — low ×0.3,
+   normal ×1.0, high ×1.3 — derived automatically from Perenual's
+   `drought_tolerant`, `type`, `watering` and `growth_rate`, falling back to
+   taxonomy for the species the free API tier withholds.
+
+**Indoor plants skip steps 2–4 entirely.** Both the classification and the
+final number can be overridden per plant in its care sheet.
+
+Calibrated against container-growing sources: potted allamanda every 1–2 days
+at 21–32 °C ([greg.app](https://greg.app/how-often-to-water-bush-allamanda/)),
+potted lantana daily to every two days in hot dry regions
+([Gardening Know How](https://www.gardeningknowhow.com/ornamental/flowers/lantana/watering-lantana-plants.htm)),
+and the general container rule of every 1–2 days in summer with wind named as
+an accelerant ([Proven Winners](https://www.provenwinners.com/learn/water-your-way-happy-plants),
+[Old Farmer's Almanac](https://www.almanac.com/how-water-flowers-watering-tips)).
+
 ## How rain affects watering
 
 Research-backed behavior (sources below): rain **never automatically** counts

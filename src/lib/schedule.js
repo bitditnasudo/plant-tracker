@@ -42,6 +42,25 @@ export const WIND_SENSITIVITY = {
 
 export const MAX_WIND_CUT = 0.6 // never shorten by more than this, whatever the maths says
 
+/* Field-reported ceilings for OUTDOOR POTTED plants in the growing season.
+ *
+ * Perenual's watering_general_benchmark is a generic figure that assumes
+ * in-ground or sheltered growing — for Allamanda it says 7–10 days. Container
+ * growers report something else entirely: potted allamanda every 1–2 days at
+ * 21–32°C (greg.app) or 2–3 days in spring/summer; potted lantana "daily or
+ * every two days" in hot arid regions; and the general container rule is
+ * every 1–2 days in summer, daily above ~29°C, with wind explicitly named as
+ * an accelerant (Gardening Know How, Proven Winners, Old Farmer's Almanac).
+ *
+ * A percentage cut off a 9-day benchmark can never reach 2–3 days, so the
+ * ceiling is applied to the base BEFORE wind, and wind then modulates within
+ * it. The cap only ever shortens, so species whose base is already
+ * container-realistic (zinnia at 3 days) are left alone. Drought-adapted
+ * plants are exempt — a barrel cactus in a pot really does go a fortnight.
+ */
+export const OUTDOOR_POT_CAP_DAYS = { high: 4, normal: 7, low: Infinity }
+export const DORMANT_CAP_MULTIPLIER = 2 // evaporation collapses out of season
+
 /* Daily wind history, registered by the store (device-local cache, backfilled
  * from Open-Meteo). Kept module-level so schedule functions stay pure-ish and
  * callers don't have to thread it through every signature. */
@@ -151,10 +170,20 @@ export function baseIntervalDays(plant, latitude) {
   return isGrowingSeason(new Date(), latitude) ? cat.waterSummer : cat.waterWinter
 }
 
+// Base interval after the outdoor-container ceiling. Indoor pots dry slowly,
+// so they keep the species figure untouched.
+export function potCappedBase(plant, latitude) {
+  const base = baseIntervalDays(plant, latitude)
+  if (!plant.isOutside) return base
+  let cap = OUTDOOR_POT_CAP_DAYS[resolveWindSensitivity(plant)] ?? Infinity
+  if (cap !== Infinity && !isGrowingSeason(new Date(), latitude)) cap *= DORMANT_CAP_MULTIPLIER
+  return Math.min(base, cap)
+}
+
 export function waterIntervalDays(plant, latitude) {
   // a manual override always wins — the user's own observation beats the model
   if (plant.intervalOverride > 0) return Math.max(1, Math.round(plant.intervalOverride))
-  const base = baseIntervalDays(plant, latitude)
+  const base = potCappedBase(plant, latitude)
   const { cut } = windAdjustment(plant)
   return Math.max(1, Math.round(base * (1 - cut)))
 }
@@ -162,11 +191,14 @@ export function waterIntervalDays(plant, latitude) {
 // For the UI: how the effective interval was arrived at.
 export function intervalBreakdown(plant, latitude) {
   const base = baseIntervalDays(plant, latitude)
+  const capped = potCappedBase(plant, latitude)
   const wind = windAdjustment(plant)
   return {
     base,
+    capped,
+    capApplied: capped < base,
     wind,
-    modelled: Math.max(1, Math.round(base * (1 - wind.cut))),
+    modelled: Math.max(1, Math.round(capped * (1 - wind.cut))),
     override: plant.intervalOverride > 0 ? Math.max(1, Math.round(plant.intervalOverride)) : null,
     effective: waterIntervalDays(plant, latitude),
   }
