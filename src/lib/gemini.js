@@ -6,6 +6,64 @@ import { idbSet } from './idb.js'
 
 // Newest image model first; falls back if the key's plan doesn't include it.
 const MODELS = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image']
+// Text models for the care lookup (2.5-flash now 404s for new keys).
+const TEXT_MODELS = ['gemini-3-flash-preview', 'gemini-flash-latest', 'gemini-2.0-flash']
+
+/* Fill in care details for a plant no catalogue has.
+ *
+ * Deliberately asks for a SHELTERED container baseline: the app layers its own
+ * container ceiling and wind adjustment on top, so a figure that already
+ * accounted for an exposed balcony would be counted twice. Returns a
+ * confidence flag so the UI can warn when the model is guessing — the result
+ * always lands in an editable form, never straight into the schedule.
+ */
+export async function lookupPlantCare(apiKey, { name, latin }) {
+  const subject = [name, latin && `(${latin})`].filter(Boolean).join(' ')
+  const body = {
+    contents: [{ parts: [{ text:
+      `Care requirements for a POTTED specimen of: ${subject}. ` +
+      `Assume a container in a sheltered position with no significant wind, watered by hand. ` +
+      `Do NOT pre-adjust for wind, balconies or exposure — that is applied separately. ` +
+      `waterSummer/waterWinter are days between waterings in active growth and dormancy. ` +
+      `mistDays is days between mistings, or null if this species does not need misting. ` +
+      `fertilizeDays is days between feeding in the growing season. ` +
+      `appearance is a short visual phrase for an illustration. ` +
+      `Set confidence to low if you are not sure this exact plant is well known to you.` }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          waterSummer: { type: 'INTEGER' }, waterWinter: { type: 'INTEGER' },
+          mistDays: { type: 'INTEGER', nullable: true }, fertilizeDays: { type: 'INTEGER' },
+          light: { type: 'STRING', enum: ['direct', 'partial', 'shade'] },
+          category: { type: 'STRING', enum: ['foliage', 'cactus', 'succulent', 'flower', 'herb', 'tree'] },
+          outdoor: { type: 'BOOLEAN' }, appearance: { type: 'STRING' },
+          confidence: { type: 'STRING', enum: ['low', 'medium', 'high'] },
+        },
+        required: ['waterSummer', 'waterWinter', 'fertilizeDays', 'light', 'category', 'outdoor', 'appearance', 'confidence'],
+      },
+    },
+  }
+
+  let lastError = null
+  for (const model of TEXT_MODELS) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    )
+    if (!res.ok) {
+      lastError = new Error(`Lookup failed (${res.status})`)
+      if (res.status === 404 || res.status === 429 || res.status === 403) continue
+      throw lastError
+    }
+    const data = await res.json()
+    const txt = data?.candidates?.[0]?.content?.parts?.find(p => p.text)?.text
+    if (!txt) { lastError = new Error('Empty response'); continue }
+    try { return JSON.parse(txt) } catch { lastError = new Error('Could not read the response'); }
+  }
+  throw lastError || new Error('Lookup failed')
+}
 
 // Adapted from the user's prompt template. No glass panel in the image itself:
 // the app's plant tile already provides the frosted rounded-square panel, so a

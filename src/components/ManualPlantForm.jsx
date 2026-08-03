@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { ChevronLeft, PencilLine } from 'lucide-react'
+import { ChevronLeft, PencilLine, Wand2, Loader2 } from 'lucide-react'
 import { CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
+import { lookupPlantCare } from '../lib/gemini.js'
+import { useStore } from '../lib/store.jsx'
 import { PlantIcon, ICON_KEYS } from './PlantIcons.jsx'
 
 /* For plants that exist in no database — nursery hybrids, local cultivars,
@@ -14,6 +16,11 @@ const ICON_SUGGESTION = {
 }
 
 export function ManualPlantForm({ onCancel, onCreate }) {
+  const { state } = useStore()
+  const geminiKey = state.settings.geminiKey
+  const [looking, setLooking] = useState(false)
+  const [lookup, setLookup] = useState(null)   // {confidence} once filled
+  const [lookupError, setLookupError] = useState(null)
   const [name, setName] = useState('')
   const [latin, setLatin] = useState('')
   const [category, setCategory] = useState('foliage')
@@ -32,6 +39,27 @@ export function ManualPlantForm({ onCancel, onCreate }) {
   const pickCategory = c => {
     setCategory(c)
     if (!iconTouched) setIcon(ICON_SUGGESTION[c] || 'leafVine')
+  }
+
+  const runLookup = async () => {
+    setLooking(true)
+    setLookupError(null)
+    try {
+      const r = await lookupPlantCare(geminiKey, { name: name.trim(), latin: latin.trim() })
+      setSummer(Math.max(1, Math.min(120, r.waterSummer)))
+      setWinter(Math.max(1, Math.min(120, r.waterWinter)))
+      setMist(r.mistDays ? String(Math.max(1, Math.min(60, r.mistDays))) : '')
+      setFertilize(Math.max(7, Math.min(365, r.fertilizeDays)))
+      if (['direct', 'partial', 'shade'].includes(r.light)) setLight(r.light)
+      if (r.category) pickCategory(r.category)
+      setOutdoor(!!r.outdoor)
+      if (r.appearance) setDetails(r.appearance)
+      setLookup({ confidence: r.confidence })
+    } catch (e) {
+      setLookupError(e.message)
+    } finally {
+      setLooking(false)
+    }
   }
 
   const create = () => onCreate({
@@ -71,9 +99,31 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <input value={name} placeholder="e.g. Lantana 'Bandana Cherry'" onChange={e => setName(e.target.value)} autoFocus />
       </div>
       <div className="field">
-        <label>Scientific name (optional)</label>
+        <label>Scientific name (optional — improves the lookup)</label>
         <input value={latin} placeholder="e.g. Lantana camara" onChange={e => setLatin(e.target.value)} />
       </div>
+
+      {geminiKey ? (
+        <div className="field">
+          <button className="btn btn-mint btn-block" disabled={!name.trim() || looking} onClick={runLookup}>
+            {looking ? <Loader2 size={16} className="spin" /> : <Wand2 size={16} />}
+            {looking ? 'Looking it up…' : "Don't know the details? Look them up"}
+          </button>
+          {lookup && (
+            <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+              Filled in below{lookup.confidence === 'low' && ' — but flagged as a guess'}.
+              {lookup.confidence === 'low'
+                ? ' Treat every number as a starting point and correct it once you have watched the plant.'
+                : ' These are typical figures, not gospel — adjust anything you know better.'}
+            </p>
+          )}
+          {lookupError && <p style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{lookupError}</p>}
+        </div>
+      ) : (
+        <p className="muted" style={{ fontSize: 11.5, margin: '-4px 2px 14px' }}>
+          Add a Gemini API key in Account and this form can look the care details up for you.
+        </p>
+      )}
 
       <div className="field">
         <label>Type — sets the icon and the wind-sensitivity guess</label>
