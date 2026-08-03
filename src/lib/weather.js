@@ -31,11 +31,17 @@ export async function searchCity(name) {
   })
 }
 
+// How much past weather to pull on every refresh. Open-Meteo backfills this
+// from its own archive, so wind history has no gaps even if the app wasn't
+// opened for weeks — far more reliable than only logging what we observe.
+export const WIND_HISTORY_DAYS = 30
+
 export async function fetchWeather({ lat, lon }) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m` +
     `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min` +
-    `&past_days=1&forecast_days=2&timezone=auto`
+    `,wind_speed_10m_max,wind_speed_10m_mean` +
+    `&past_days=${WIND_HISTORY_DAYS}&forecast_days=2&timezone=auto`
   const res = await fetch(url)
   if (!res.ok) throw new Error('Weather request failed')
   const d = await res.json()
@@ -44,7 +50,18 @@ export async function fetchWeather({ lat, lon }) {
   const yIdx = d.daily.time.indexOf(yesterdayDate)
   const todayIdx = yIdx >= 0 ? yIdx + 1 : 0
 
+  // daily wind history: { 'YYYY-MM-DD': { max, mean } }, both km/h
+  const windDaily = {}
+  d.daily.time.forEach((day, i) => {
+    const max = d.daily.wind_speed_10m_max?.[i]
+    const mean = d.daily.wind_speed_10m_mean?.[i]
+    if (typeof max === 'number' || typeof mean === 'number') {
+      windDaily[day] = { max: max ?? mean, mean: mean ?? max }
+    }
+  })
+
   return {
+    windDaily,
     fetchedAt: Date.now(),
     temp: d.current.temperature_2m,
     humidity: d.current.relative_humidity_2m,

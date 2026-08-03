@@ -5,7 +5,7 @@ import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS } from '../lib/catalog.js'
 import {
   waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, daysLeftLabel, waterIntervalDays,
-  EXPOSURE_LEVELS, resolveExposure, intervalBreakdown,
+  WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown,
 } from '../lib/schedule.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { PlantIcon } from './PlantIcons.jsx'
@@ -124,54 +124,75 @@ export function PlantDetailModal({ plant, onClose }) {
           }}
         />
 
-        <div className="field">
-          <label><Wind size={12} /> Wind exposure — shortens the watering interval</label>
-          <div className="seg">
-            {Object.entries(EXPOSURE_LEVELS).map(([key, lvl]) => (
-              <button
-                key={key}
-                className={resolveExposure(plant) === key ? 'active' : ''}
-                onClick={() => updatePlant(plant.id, { exposure: key })}
-              >
-                {lvl.label}
-              </button>
-            ))}
-          </div>
-          {(() => {
-            const b = intervalBreakdown(plant, lat)
-            return (
-              <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
-                {EXPOSURE_LEVELS[b.exposure].hint}.{' '}
-                {b.override
-                  ? <>Manual override: <b>every {b.override} days</b> (model would say {Math.max(1, Math.round(b.base * (EXPOSURE_LEVELS[b.exposure].factor)))}).</>
-                  : <>Base {b.base} days → <b>every {b.effective} days</b> here.</>}
-              </p>
-            )
-          })()}
-        </div>
+        {(() => {
+          const b = intervalBreakdown(plant, lat)
+          const sens = resolveWindSensitivity(plant, cat)
+          return (
+            <>
+              <div className="field">
+                <label><Wind size={12} /> Wind sensitivity {plant.windSensitivityOverride ? '(corrected by you)' : '(auto)'}</label>
+                <div className="seg">
+                  {Object.entries(WIND_SENSITIVITY).map(([key, lvl]) => (
+                    <button
+                      key={key}
+                      className={sens === key ? 'active' : ''}
+                      onClick={() => updatePlant(plant.id, { windSensitivityOverride: key })}
+                    >
+                      {lvl.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                  {WIND_SENSITIVITY[sens].hint}.
+                  {plant.windSensitivityOverride && (
+                    <> <a href="#" style={{ color: 'var(--olive)' }}
+                      onClick={e => { e.preventDefault(); updatePlant(plant.id, { windSensitivityOverride: null }) }}>
+                      Use auto ({WIND_SENSITIVITY[resolveWindSensitivity({ ...plant, windSensitivityOverride: null }, cat)].label})
+                    </a></>
+                  )}
+                </p>
+              </div>
 
-        <div className="field">
-          <label>Watering interval override (days)</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="number" min="1" max="120" inputMode="numeric"
-              placeholder={`auto — ${waterIntervalDays({ ...plant, intervalOverride: null }, lat)} days`}
-              value={plant.intervalOverride || ''}
-              onChange={e => {
-                const v = e.target.value
-                updatePlant(plant.id, { intervalOverride: v === '' ? null : Math.max(1, Math.min(120, +v)) })
-              }}
-            />
-            {plant.intervalOverride > 0 && (
-              <button className="btn btn-ghost btn-sm" onClick={() => updatePlant(plant.id, { intervalOverride: null })}>
-                Auto
-              </button>
-            )}
-          </div>
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
-            Set this if you’ve watched the plant and know better than the model — it wins over everything else.
-          </p>
-        </div>
+              <div className="card" style={{ fontSize: 12.5, marginBottom: 14 }}>
+                <b>How {b.effective} days was calculated</b>
+                <div className="muted" style={{ marginTop: 4, lineHeight: 1.6 }}>
+                  Base interval <b>{b.base} days</b>
+                  {!plant.isOutside && <> · indoors, so wind is never applied</>}
+                  {plant.isOutside && !b.wind.applies && <> · no wind data yet for this location</>}
+                  {plant.isOutside && b.wind.applies && (
+                    <> · wind since last watering averaged <b>{Math.round(b.wind.avgKmh)} km/h</b>
+                      {' '}({b.wind.tier.label}) × {WIND_SENSITIVITY[b.wind.sensitivity].label.toLowerCase()} sensitivity
+                      {' '}→ <b>−{Math.round(b.wind.cut * 100)}%</b> → {b.modelled} days</>
+                  )}
+                  {b.override && <> · <b>your override of {b.override} days wins</b></>}
+                </div>
+              </div>
+
+              <div className="field">
+                <label>Watering interval override (days)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="number" min="1" max="120" inputMode="numeric"
+                    placeholder={`auto — ${b.modelled} days`}
+                    value={plant.intervalOverride || ''}
+                    onChange={e => {
+                      const v = e.target.value
+                      updatePlant(plant.id, { intervalOverride: v === '' ? null : Math.max(1, Math.min(120, +v)) })
+                    }}
+                  />
+                  {plant.intervalOverride > 0 && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => updatePlant(plant.id, { intervalOverride: null })}>
+                      Auto
+                    </button>
+                  )}
+                </div>
+                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                  Your own observation of the plant beats the model — this wins over wind and sensitivity both.
+                </p>
+              </div>
+            </>
+          )
+        })()}
 
         {cat.outdoor && (
           <div className="field">

@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { formatISO } from 'date-fns'
+import { formatISO, subDays } from 'date-fns'
 import { idbSet, idbGet, idbDelete, idbKeys } from './idb.js'
-import { fetchWeather } from './weather.js'
-import { applyRainAnswer } from './schedule.js'
+import { fetchWeather, WIND_HISTORY_DAYS } from './weather.js'
+import { applyRainAnswer, setWindLog } from './schedule.js'
 import { setCustomCatalog } from './catalog.js'
 import {
   isAuthenticated, signIn, clearToken as clearGoogleToken,
@@ -13,6 +13,11 @@ import { syncCalendarReminders, clearCalendarReminders } from './calendarSync.js
 export const APP_VERSION = '1.0.0'
 const LS_KEY = 'plant-tracker:v1'
 const SYNC_META_KEY = 'plant-tracker:sync' // {fileId, savedAt of last pushed/applied payload}
+// Daily wind history is a device-local cache, not user data: Open-Meteo
+// backfills 30 days on every fetch, so it needs no syncing or merging.
+const WIND_LOG_KEY = 'plant-tracker:windlog'
+
+const loadWindLog = () => { try { return JSON.parse(localStorage.getItem(WIND_LOG_KEY)) || {} } catch { return {} } }
 
 const loadSyncMeta = () => { try { return JSON.parse(localStorage.getItem(SYNC_META_KEY)) || {} } catch { return {} } }
 const saveSyncMeta = m => localStorage.setItem(SYNC_META_KEY, JSON.stringify(m))
@@ -122,6 +127,8 @@ function loadState() {
       profile: { ...DEFAULT_STATE.profile, ...parsed.profile },
       settings,
       plan: migratePlan({ ...DEFAULT_STATE.plan, ...parsed.plan }),
+      // drop the retired static exposure tag; wind is measured now
+      plants: (parsed.plants || []).map(({ exposure, ...p }) => p),
     }
   } catch {
     return DEFAULT_STATE
@@ -137,6 +144,11 @@ export function StoreProvider({ children }) {
   const [weatherError, setWeatherError] = useState(null)
   const [planImage, setPlanImage] = useState(null)   // dataURL
   const [icons, setIcons] = useState({})             // plantId -> dataURL (Gemini-generated)
+  const [windLog, setWindLogState] = useState(() => {  // { 'YYYY-MM-DD': {max, mean} }
+    const l = loadWindLog()
+    setWindLog(l) // register with the schedule module before first render
+    return l
+  })
 
   // Google Drive sync
   const [sync, setSync] = useState(() => ({
@@ -161,6 +173,23 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     setCustomCatalog(state.customCatalog)
   }, [state.customCatalog])
+
+  // Fold each weather refresh into the rolling wind history. Because the API
+  // backfills 30 days, this self-heals gaps from days the app wasn't opened,
+  // and every refresh re-tightens the estimate for plants already waiting.
+  const mergeWindDaily = useCallback(windDaily => {
+    if (!windDaily || !Object.keys(windDaily).length) return
+    setWindLogState(prev => {
+      const cutoff = formatISO(subDays(new Date(), WIND_HISTORY_DAYS + 5), { representation: 'date' })
+      const next = {}
+      for (const [day, v] of Object.entries({ ...prev, ...windDaily })) {
+        if (day >= cutoff) next[day] = v
+      }
+      localStorage.setItem(WIND_LOG_KEY, JSON.stringify(next))
+      setWindLog(next)
+      return next
+    })
+  }, [])
 
   // load blobs from IndexedDB once
   useEffect(() => {
@@ -192,7 +221,7 @@ export function StoreProvider({ children }) {
     const load = async () => {
       try {
         const w = await fetchWeather(location)
-        if (alive) { setWeather(w); setWeatherError(null) }
+        if (alive) { setWeather(w); mergeWindDaily(w.windDaily); setWeatherError(null) }
       } catch (e) {
         if (alive) setWeatherError(e.message)
       }
@@ -464,14 +493,16 @@ export function StoreProvider({ children }) {
 
     refreshWeather: async () => {
       if (!location) return
-      try { setWeather(await fetchWeather(location)); setWeatherError(null) }
-      catch (e) { setWeatherError(e.message) }
+      try {
+        const w = await fetchWeather(location)
+        setWeather(w); mergeWindDaily(w.windDaily); setWeatherError(null)
+      } catch (e) { setWeatherError(e.message) }
     },
-  }), [patch, planImage, icons, state, location, applyPayload, syncNow, runCalendarSync])
+  }), [patch, planImage, icons, state, location, applyPayload, syncNow, runCalendarSync, mergeWindDaily])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, sync, calStatus, ...api }),
-    [state, weather, weatherError, planImage, icons, sync, calStatus, api],
+    () => ({ state, weather, weatherError, planImage, icons, sync, calStatus, windLog, ...api }),
+    [state, weather, weatherError, planImage, icons, sync, calStatus, windLog, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

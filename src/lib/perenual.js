@@ -2,6 +2,8 @@
 // ~100 requests/day). Results are mapped into the same catalogue shape the
 // bundled plants use, then saved into the user's personal catalogue.
 
+import { deriveWindSensitivity } from './schedule.js'
+
 const BASE = 'https://perenual.com/api/v2'
 
 // Free-tier keys only get care data for roughly the first 3000 species IDs;
@@ -73,6 +75,8 @@ export function estimatedEntry({ perenualId, name, latin }) {
     id: `perenual-${perenualId}`,
     source: 'perenual',
     name, latin,
+    // no care data on this tier — classify from the name/taxonomy alone
+    windSensitivity: deriveWindSensitivity({ common_name: name, scientific_name: [latin] }),
     category: meta.category,
     light: 'partial',
     waterSummer: 7,
@@ -108,6 +112,7 @@ export async function fetchPerenualEntry(key, row) {
     source: 'perenual',
     name,
     latin: d.scientific_name?.[0] || row.latin || '',
+    windSensitivity: deriveWindSensitivity(d),
     category: meta.category,
     light: lightFromSunlight(d.sunlight),
     waterSummer: summer,

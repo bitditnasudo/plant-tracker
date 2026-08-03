@@ -104,6 +104,10 @@ export function AddPlantModal({ onClose }) {
       nickname: nickname.trim(),
       potType, potColor,
       isOutside: selected.outdoor ? isOutside : false,
+      // auto-derived at import; null falls back to the catalogue rule at read time
+      windSensitivity: selected.windSensitivity || null,
+      windSensitivityOverride: null,
+      intervalOverride: null,
       ...placement,
       lastWatered,
       lastMisted: lastWatered,
