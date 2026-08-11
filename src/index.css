@@ -164,15 +164,27 @@ h1, h2, h3 { font-family: var(--font-display); }
 .due-text { color: var(--red); font-weight: 700; }
 .plant-actions { display: flex; gap: 9px; margin-top: auto; padding-top: 8px; align-items: center; justify-content: flex-end; }
 
+/* the icons inside are shaded 3D objects, so the tile stays pale and lets them
+   carry the colour — the border and shadow keep it reading as a button */
 .action-sq {
-  width: 44px; height: 44px; border-radius: 12px; border: none; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; transition: transform .12s ease;
+  width: 46px; height: 46px; border-radius: 14px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .12s ease, box-shadow .12s ease;
 }
 .action-sq:active { transform: scale(.9); }
-.action-sq.dark { background: var(--deep); }
-.action-sq.mint { background: var(--mint); }
+.action-sq.water {
+  background: linear-gradient(155deg, #FFFFFF 0%, #E4F0FB 55%, #CBE1F6 100%);
+  border: 1px solid rgba(42, 98, 153, 0.30);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 5px 12px rgba(42, 98, 153, 0.18);
+}
+.action-sq.mist {
+  background: linear-gradient(155deg, #FFFFFF 0%, #E1F5F2 55%, #C6EBE6 100%);
+  border: 1px solid rgba(28, 104, 98, 0.30);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 5px 12px rgba(28, 104, 98, 0.18);
+}
+.action-sq.water:hover, .action-sq.mist:hover { box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 7px 16px rgba(27, 67, 50, 0.22); }
 .action-sq.ghost { background: var(--beige); }
-.action-sq svg { width: 36px; height: 36px; }
+.action-sq svg { width: 38px; height: 38px; }
 .action-sq:disabled { opacity: .35; cursor: default; }
 
 /* days-left tag */

@@ -56,14 +56,14 @@ export function PlantCard({ plant, onOpen, onRain }) {
         )}
         <div className="plant-actions">
           <button
-            className="action-sq dark" title="Mark watered"
+            className="action-sq water" title="Mark watered"
             onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
           >
             <WateringCan />
           </button>
           {cat.mist && (
             <button
-              className="action-sq mint" title="Mark misted"
+              className="action-sq mist" title="Mark misted"
               onClick={e => { e.stopPropagation(); markMisted(plant.id) }}
             >
               <SprayBottle />

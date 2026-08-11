@@ -8,7 +8,6 @@ const P = {
   soil: '#EFD3A7', soilDark: '#DDB77E',
   rose: '#E5476B', roseLight: '#F27E9B',
   pink: '#F3C9D3', white: '#FDFEFD', yellow: '#F5CE42',
-  blue: '#A8CDEB', blueDark: '#7Fb2DC',
 }
 
 // Shared soft gradients; ids are prefixed to avoid collisions across icons.
@@ -29,9 +28,6 @@ function Defs({ id }) {
       </linearGradient>
       <linearGradient id={`${id}-rose`} x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stopColor={P.roseLight} /><stop offset="1" stopColor={P.rose} />
-      </linearGradient>
-      <linearGradient id={`${id}-blue`} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor={P.blue} /><stop offset="1" stopColor={P.blueDark} />
       </linearGradient>
     </defs>
   )
@@ -255,25 +251,117 @@ export const Palm = wrap('pm', id => (
   </g>
 ))
 
+// The two care tools are drawn a step richer than the plant icons — cylinder
+// shading, a rim light and a contact shadow — so they sit beside the
+// Gemini-rendered thumbnails without looking flat.
 export const WateringCan = wrap('wc', id => (
   <g>
-    <path d="M22 26 L42 26 L40 48 Q31 51 24 48 Z" fill={`url(#${id}-blue)`} />
-    <rect x="20" y="23" width="24" height="6" rx="3" fill={P.blue} />
-    <path d="M24 32 Q12 34 12 26" stroke={P.blueDark} strokeWidth="4" fill="none" strokeLinecap="round" />
-    <circle cx="12" cy="25" r="3.4" fill={P.white} />
-    <path d="M42 30 Q52 26 54 36" stroke={P.white} strokeWidth="4.5" fill="none" strokeLinecap="round" />
-    <ellipse cx="29" cy="34" rx="2.6" ry="5" fill={P.white} opacity="0.45" />
+    <defs>
+      <linearGradient id={`${id}-can`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#4E8BC4" />
+        <stop offset="0.22" stopColor="#C2E0F7" />
+        <stop offset="0.62" stopColor="#67A0D4" />
+        <stop offset="1" stopColor="#2A6299" />
+      </linearGradient>
+      <linearGradient id={`${id}-rim`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#EDF6FD" />
+        <stop offset="1" stopColor="#7FB0DE" />
+      </linearGradient>
+      <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#A5CBEC" />
+        <stop offset="1" stopColor="#376FA8" />
+      </linearGradient>
+      <radialGradient id={`${id}-gloss`} cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.8" />
+        <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+
+    <ellipse cx="34" cy="53.5" rx="15" ry="3" fill={P.deep} opacity="0.16" />
+
+    {/* hoop handle, tucked behind the rim */}
+    <path d="M44.5 26 Q49.5 10.5 35 10.8 Q26 11 25.5 20.5" fill="none"
+      stroke={`url(#${id}-metal)`} strokeWidth="4.4" strokeLinecap="round" />
+    <path d="M43.8 24 Q47.6 12.6 35.4 12.8" fill="none"
+      stroke="#D3E8FA" strokeWidth="1.2" strokeLinecap="round" opacity="0.65" />
+
+    {/* spout, tapering up to the rose */}
+    <path d="M23.5 44 Q13.5 41.5 9.8 29.6 L16 27 Q19.4 36.4 25.5 38 Z" fill={`url(#${id}-metal)`} />
+    <path d="M22.8 42.4 Q14.6 39.8 11.6 30.2" fill="none" stroke="#CDE4F8" strokeWidth="1.3" strokeLinecap="round" opacity="0.6" />
+    <g transform="rotate(-24 12.9 28.3)">
+      <ellipse cx="12.9" cy="28.3" rx="5" ry="3.4" fill={`url(#${id}-metal)`} />
+      <ellipse cx="12.9" cy="27.2" rx="4.3" ry="2.4" fill="#CDE4F8" opacity="0.75" />
+      {[[11, 27], [14.6, 26.6], [12.8, 28.8]].map(([x, y]) => (
+        <circle key={x} cx={x} cy={y} r="0.75" fill="#2A6299" opacity="0.55" />
+      ))}
+    </g>
+
+    {/* body */}
+    <path d="M21 25 L47 25 L45 46 Q45 52 34 52.3 Q23 52 23 46 Z" fill={`url(#${id}-can)`} />
+    <ellipse cx="28.5" cy="35" rx="3.4" ry="8.5" fill="#FFFFFF" opacity="0.34" />
+    <ellipse cx="31" cy="33" rx="9" ry="9" fill={`url(#${id}-gloss)`} opacity="0.5" />
+    <path d="M45.6 27.5 Q46.4 39 43.4 47.5" fill="none" stroke="#DCEDFB" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+
+    {/* rim, and the dark opening inside it */}
+    <ellipse cx="34" cy="25" rx="13" ry="4.3" fill={`url(#${id}-rim)`} />
+    <ellipse cx="34" cy="25.4" rx="10.4" ry="3.1" fill="#245C90" />
+    <path d="M24.4 24.4 Q34 20.6 43.6 24.4" fill="none" stroke="#E8F3FD" strokeWidth="1.4" strokeLinecap="round" opacity="0.75" />
   </g>
 ))
 
 export const SprayBottle = wrap('sb', id => (
   <g>
-    <path d="M26 30 L38 30 L39 52 Q32 55 25 52 Z" fill={`url(#${id}-blue)`} />
-    <rect x="28" y="22" width="8" height="9" rx="2" fill={P.white} />
-    <path d="M28 22 L40 22 L40 17 L30 17 Q28 17 28 20 Z" fill={P.white} />
-    <rect x="40" y="17.5" width="4" height="4" rx="1.4" fill={P.blueDark} />
-    <rect x="27" y="36" width="10" height="10" rx="3" fill={P.white} opacity="0.75" />
-    {[[48, 14], [51, 18], [48, 22]].map(([x, y]) => <circle key={y} cx={x} cy={y} r="1.4" fill={P.blueDark} opacity="0.7" />)}
+    <defs>
+      <linearGradient id={`${id}-bottle`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#2C8880" />
+        <stop offset="0.22" stopColor="#A6E6E0" />
+        <stop offset="0.6" stopColor="#45AEA6" />
+        <stop offset="1" stopColor="#1C6862" />
+      </linearGradient>
+      <linearGradient id={`${id}-head`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#8FD9D3" />
+        <stop offset="1" stopColor="#26786F" />
+      </linearGradient>
+      <linearGradient id={`${id}-liquid`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#3FA79E" />
+        <stop offset="1" stopColor="#125A55" />
+      </linearGradient>
+      <radialGradient id={`${id}-gloss`} cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.75" />
+        <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+
+    <ellipse cx="33" cy="55" rx="13" ry="2.8" fill={P.deep} opacity="0.16" />
+
+    {/* trigger, then the head block with its nozzle spur */}
+    <path d="M28.2 22.8 Q23.4 24 22 28.2" fill="none" stroke="#3BA49C" strokeWidth="3" strokeLinecap="round" />
+    <path d="M27.8 21.9 Q23.4 23.1 22.1 26.9" fill="none" stroke="#A9E7E1" strokeWidth="1" strokeLinecap="round" opacity="0.7" />
+    <path d="M27 22.5 L27 14.5 Q27 12 29.5 12 L36.6 12 Q38.6 12 38.6 14 L38.6 16.6 L45.6 17 Q47.1 17.1 47.1 18.4 Q47.1 19.7 45.6 19.6 L38.6 19.2 L38.6 22.5 Z"
+      fill={`url(#${id}-head)`} />
+    <path d="M29 21.6 L29 15 Q29 13.6 30.4 13.6 L36 13.6" fill="none" stroke="#CDF0EC" strokeWidth="1.3" strokeLinecap="round" opacity="0.7" />
+
+    {/* collar and shoulder */}
+    <path d="M28.6 25.4 L37.4 25.4 L39.6 29.4 L26.4 29.4 Z" fill="#237E76" />
+    <rect x="27.6" y="22.2" width="11" height="3.6" rx="1.8" fill="#2A8079" />
+    <path d="M28.8 23.4 L37.4 23.4" stroke="#9FE2DC" strokeWidth="1" strokeLinecap="round" opacity="0.55" />
+
+    {/* bottle */}
+    <path d="M24.6 28.6 L41.4 28.6 Q42.4 28.6 42.5 30 L42.6 49 Q42.6 53.8 33.4 54.2 Q23.6 53.8 23.6 49 L23.7 30 Q23.7 28.6 24.6 28.6 Z"
+      fill={`url(#${id}-bottle)`} />
+    <path d="M23.65 41.4 Q28.4 39.9 33.2 40.7 Q38 41.5 42.55 40 L42.6 49 Q42.6 53.8 33.4 54.2 Q23.6 53.8 23.6 49 Z"
+      fill={`url(#${id}-liquid)`} opacity="0.9" />
+    <rect x="26.4" y="32.4" width="13.6" height="7.6" rx="2.4" fill={P.white} opacity="0.85" />
+    <rect x="28.4" y="34.4" width="9.6" height="1.5" rx="0.75" fill="#2C8880" opacity="0.5" />
+    <rect x="28.4" y="37" width="6.4" height="1.5" rx="0.75" fill="#2C8880" opacity="0.35" />
+    <ellipse cx="27.6" cy="45.5" rx="2.2" ry="5.6" fill="#FFFFFF" opacity="0.3" />
+    <ellipse cx="29" cy="33" rx="7" ry="6" fill={`url(#${id}-gloss)`} opacity="0.45" />
+    <path d="M41.4 31.5 Q42.2 42 40.6 50.4" fill="none" stroke="#C9EFEB" strokeWidth="1.4" strokeLinecap="round" opacity="0.45" />
+
+    {/* mist */}
+    {[[50.5, 15.4, 2], [55, 13, 1.3], [52.6, 19.6, 1.6], [57, 18, 1], [50.8, 23.4, 1.2]].map(([x, y, r]) => (
+      <circle key={y} cx={x} cy={y} r={r} fill="#4FB5AD" opacity="0.65" />
+    ))}
   </g>
 ))
 
