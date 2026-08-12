@@ -29,7 +29,7 @@ export default function AuthCallback() {
   }, [navigate, refreshSync])
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="auth-page">
       <span className="muted">Connecting to Google…</span>
     </div>
   )

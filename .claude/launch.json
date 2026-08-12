@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "plant-tracker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "// note": "UI-only. Google's OAuth client has http://localhost:5173/auth/callback registered, so the entry above must keep that exact port; use this one when 5173 is busy and you only need to look at layout. Vite ignores $PORT, so the port is passed explicitly rather than via autoPort.",
+      "name": "plant-tracker-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5199", "--strictPort"],
+      "port": 5199
+    }
+  ]
+}

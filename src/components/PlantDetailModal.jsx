@@ -57,55 +57,55 @@ export function PlantDetailModal({ plant, onClose }) {
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14 }}>
-          <div className="plant-tile" style={{ width: 74, height: 74 }}>
+        <div className="sheet-ident">
+          <div className="plant-tile plant-tile-md">
             {customIcon ? <img src={customIcon} alt={cat.name} /> : <PlantIcon icon={cat.icon} />}
           </div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ marginBottom: 0 }}>{plant.nickname || cat.name}</h2>
-            <div className="muted" style={{ fontStyle: 'italic' }}>{cat.latin}</div>
+          <div className="grow">
+            <h2>{plant.nickname || cat.name}</h2>
+            <div className="muted latin">{cat.latin}</div>
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: 12 }}>
-          <div className="row-list">
-            <div className="row">
+        <div className="card">
+          <div>
+            <div className="list-row">
               <div className="row-icon"><Droplets size={18} /></div>
               <div className="grow">Water every <b>{waterIntervalDays(plant, lat)} days</b><small>Next: {daysLeftLabel(wLeft)}</small></div>
               {/* an action, not a status: urgent when due, quiet when it isn't */}
               <button
-                className={`btn btn-sm ${wLeft <= 0 ? 'btn-primary' : 'btn-ghost'}`}
+                className={`btn btn-sm ${wLeft <= 0 ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => markWatered(plant.id)}
               >
-                <WateringCan style={{ width: 17, height: 17 }} />
+                <WateringCan className="art-sm" />
                 {wLeft <= 0 ? 'Water now' : 'Log water'}
               </button>
             </div>
             {cat.mist && (
-              <div className="row">
-                <div className="row-icon"><SprayBottle style={{ width: 20, height: 20 }} /></div>
+              <div className="list-row">
+                <div className="row-icon"><SprayBottle className="art-md" /></div>
                 <div className="grow">Mist every <b>{cat.mist} days</b><small>Next: {daysLeftLabel(mLeft)}</small></div>
                 <button
-                  className={`btn btn-sm ${mLeft !== null && mLeft <= 0 ? 'btn-mint' : 'btn-ghost'}`}
+                  className={`btn btn-sm ${mLeft !== null && mLeft <= 0 ? 'btn-soft' : 'btn-secondary'}`}
                   onClick={() => markMisted(plant.id)}
                 >
-                  <SprayBottle style={{ width: 17, height: 17 }} />
+                  <SprayBottle className="art-sm" />
                   {mLeft !== null && mLeft <= 0 ? 'Mist now' : 'Log mist'}
                 </button>
               </div>
             )}
-            <div className="row">
+            <div className="list-row">
               <div className="row-icon"><Sparkles size={18} /></div>
               <div className="grow">Fertilize every <b>{cat.fertilize} days</b><small>Next: {daysLeftLabel(fLeft)}</small></div>
               <button
-                className={`btn btn-sm ${fLeft !== null && fLeft <= 0 ? 'btn-primary' : 'btn-ghost'}`}
+                className={`btn btn-sm ${fLeft !== null && fLeft <= 0 ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => markFertilized(plant.id)}
               >
                 <Sparkles size={15} />
                 {fLeft !== null && fLeft <= 0 ? 'Feed now' : 'Log feed'}
               </button>
             </div>
-            <div className="row">
+            <div className="list-row">
               <div className="row-icon"><Sun size={18} /></div>
               <div className="grow">
                 Ideal light: <b>{LIGHT_LABELS[cat.light]}</b>
@@ -115,15 +115,15 @@ export function PlantDetailModal({ plant, onClose }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div className="field" style={{ flex: 1 }}>
+        <div className="field-row">
+          <div className="field">
             <label>Nickname</label>
             <input
               value={plant.nickname || ''} placeholder={cat.name}
               onChange={e => updatePlant(plant.id, { nickname: e.target.value })}
             />
           </div>
-          <div className="field" style={{ flex: 1 }}>
+          <div className="field">
             <label>Last watered</label>
             <input
               type="date" value={plant.lastWatered || ''}
@@ -160,17 +160,17 @@ export function PlantDetailModal({ plant, onClose }) {
                   {Object.entries(WIND_SENSITIVITY).map(([key, lvl]) => (
                     <button
                       key={key}
-                      className={sens === key ? 'active' : ''}
+                      className={sens === key ? 'is-active' : ''}
                       onClick={() => updatePlant(plant.id, { windSensitivityOverride: key })}
                     >
                       {lvl.label}
                     </button>
                   ))}
                 </div>
-                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                <p className="field-note">
                   {WIND_SENSITIVITY[sens].hint}.
                   {plant.windSensitivityOverride && (
-                    <> <a href="#" style={{ color: 'var(--olive)' }}
+                    <> <a href="#" className="link-brand"
                       onClick={e => { e.preventDefault(); updatePlant(plant.id, { windSensitivityOverride: null }) }}>
                       Use auto ({WIND_SENSITIVITY[resolveWindSensitivity({ ...plant, windSensitivityOverride: null }, cat)].label})
                     </a></>
@@ -178,9 +178,9 @@ export function PlantDetailModal({ plant, onClose }) {
                 </p>
               </div>
 
-              <div className="card" style={{ fontSize: 12.5, marginBottom: 14 }}>
+              <div className="card card-note">
                 <b>How {b.effective} days was calculated</b>
-                <div className="muted" style={{ marginTop: 4, lineHeight: 1.6 }}>
+                <div className="muted note-body">
                   Species interval <b>{b.base} days</b>
                   {b.capApplied && (
                     <> · that figure assumes sheltered ground, so an outdoor pot at{' '}
@@ -200,7 +200,7 @@ export function PlantDetailModal({ plant, onClose }) {
 
               <div className="field">
                 <label>Watering interval override (days)</label>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="inline-actions">
                   <input
                     type="number" min="1" max="120" inputMode="numeric"
                     placeholder={`auto — ${b.modelled} days`}
@@ -211,12 +211,12 @@ export function PlantDetailModal({ plant, onClose }) {
                     }}
                   />
                   {plant.intervalOverride > 0 && (
-                    <button className="btn btn-ghost btn-sm" onClick={() => updatePlant(plant.id, { intervalOverride: null })}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => updatePlant(plant.id, { intervalOverride: null })}>
                       Auto
                     </button>
                   )}
                 </div>
-                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                <p className="field-note">
                   Your own observation of the plant beats the model — this wins over wind and sensitivity both.
                 </p>
               </div>
@@ -228,8 +228,8 @@ export function PlantDetailModal({ plant, onClose }) {
           <div className="field">
             <label>Where does it live? (outside plants can be watered by rain)</label>
             <div className="seg">
-              <button className={!plant.isOutside ? 'active' : ''} onClick={() => updatePlant(plant.id, { isOutside: false })}>Inside</button>
-              <button className={plant.isOutside ? 'active' : ''} onClick={() => updatePlant(plant.id, { isOutside: true })}>Outside</button>
+              <button className={!plant.isOutside ? 'is-active' : ''} onClick={() => updatePlant(plant.id, { isOutside: false })}>Inside</button>
+              <button className={plant.isOutside ? 'is-active' : ''} onClick={() => updatePlant(plant.id, { isOutside: true })}>Outside</button>
             </div>
           </div>
         )}
@@ -238,14 +238,14 @@ export function PlantDetailModal({ plant, onClose }) {
           const a = resolveAppearance(plant, cat)
           return (
             <>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div className="field" style={{ flex: 1 }}>
+              <div className="field-row">
+                <div className="field">
                   <label>Pot material</label>
                   <select value={a.material.id} onChange={e => updatePlant(plant.id, { potMaterial: e.target.value })}>
                     {POT_MATERIALS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                   </select>
                 </div>
-                <div className="field" style={{ flex: 1 }}>
+                <div className="field">
                   <label>Pot colour</label>
                   <select value={a.color.id} onChange={e => updatePlant(plant.id, { potColorId: e.target.value })}>
                     {POT_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -257,7 +257,7 @@ export function PlantDetailModal({ plant, onClose }) {
                 <select value={a.bloom.id} onChange={e => updatePlant(plant.id, { bloomColor: e.target.value })}>
                   {BLOOM_COLORS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
                 </select>
-                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                <p className="field-note">
                   These three decide how the icon is drawn — change them, then regenerate below.
                 </p>
               </div>
@@ -268,16 +268,16 @@ export function PlantDetailModal({ plant, onClose }) {
         <div className="field">
           <label>Plant icon</label>
           {geminiKey ? (
-            <button className="btn btn-mint btn-block" onClick={generateIcon} disabled={generating}>
+            <button className="btn btn-soft btn-block" onClick={generateIcon} disabled={generating}>
               {generating ? <Loader2 size={16} className="spin" /> : <Wand2 size={16} />}
               {generating ? 'Generating with Gemini…' : customIcon ? 'Regenerate icon with Gemini' : 'Generate stylized icon with Gemini'}
             </button>
           ) : (
-            <p className="muted" style={{ fontSize: 12.5 }}>
+            <p className="muted">
               Add a Gemini API key in the Account tab to generate a custom stylized 3D icon for this plant.
             </p>
           )}
-          {genError && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 6 }}>{genError}</p>}
+          {genError && <p className="note-danger">{genError}</p>}
         </div>
 
         <button className="btn btn-danger btn-block" onClick={remove}>

@@ -7,3 +7,4 @@ dist
 plantview.pdf
 .vercel
 .env*
+.claude/settings.local.json

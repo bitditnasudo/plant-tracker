@@ -26,7 +26,7 @@ export function PlantCard({ plant, onOpen, onRain }) {
 
   return (
     <div className="card plant-card" onClick={() => onOpen(plant)}>
-      <div style={{ position: 'relative' }}>
+      <div className="plant-tile-wrap">
         <div className="plant-tile">
           {customIcon ? <img src={customIcon} alt={cat.name} /> : <PlantIcon icon={cat.icon} />}
         </div>
@@ -56,14 +56,14 @@ export function PlantCard({ plant, onOpen, onRain }) {
         )}
         <div className="plant-actions">
           <button
-            className="action-sq water" title="Mark watered"
+            className="action-sq action-sq-water" title="Mark watered"
             onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
           >
             <WateringCan />
           </button>
           {cat.mist && (
             <button
-              className="action-sq mist" title="Mark misted"
+              className="action-sq action-sq-mist" title="Mark misted"
               onClick={e => { e.stopPropagation(); markMisted(plant.id) }}
             >
               <SprayBottle />

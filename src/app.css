@@ -1,0 +1,472 @@
+/* ============================================================================
+   PLANT TRACKER — domain CSS. Everything the shared kit deliberately does not own.
+   ============================================================================
+   index.css is the Vantarco kit, byte-identical to template/src/index.css so it
+   stays diffable when the kit moves. Nothing app-specific may be added there.
+   This file is the other half: the plant card, the floor plan, the weather card,
+   the catalogue and the notification popover's insides.
+
+   Loaded AFTER index.css (see main.jsx), so where both define a property this
+   file wins. It should need to do that almost never — if a rule here is only
+   re-stating a kit rule, delete it and use the kit class.
+
+   RULES THIS FILE FOLLOWS
+     · Every colour is a token, EXCEPT colours that identify something rather
+       than decorate it: the 3-D artwork on the watering can and spray bottle,
+       and the per-care-task tints. A watering can is blue because water is
+       blue, not because the brand is green — re-theming the app must not
+       repaint it. Those are marked "identity" where they appear.
+     · Variants compound (.plant-tile-sm), states are prefixed (.is-selected).
+       No bare single-word class is defined here. The kit owns .row, .info and
+       .active; an app that also owned them would silently restyle kit
+       components.
+     · Type comes from --fs-*. There is no eighth size.
+   ========================================================================== */
+
+/* ── Plant card ──────────────────────────────────────────────────────────── */
+/* The list itself is the kit's .card-grid (1 → 2 → 3 columns). */
+
+.plant-card { display: flex; gap: var(--sp-3); }
+
+/* The icons inside are shaded 3-D objects, so the tile stays pale and lets them
+   carry the colour — the border and shadow keep it reading as a button. The
+   gradient and the inset highlight ARE the tile; they are not chrome and are
+   kept literal on purpose. */
+.plant-tile {
+  width: 92px; height: 92px; flex-shrink: 0; border-radius: 20px;
+  background: linear-gradient(145deg, rgba(116, 198, 157, 0.28), rgba(255, 255, 255, 0.55));
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 6px rgba(255, 255, 255, 0.7), 0 6px 16px rgb(var(--brand-rgb) / .10);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.plant-tile svg { width: 78%; height: 78%; }
+.plant-tile img { width: 100%; height: 100%; object-fit: cover; }
+.plant-tile-sm { width: 56px; height: 56px; border-radius: var(--radius-sm); }
+/* the identity block at the top of a sheet — same tile, one step down */
+.plant-tile-md { width: 74px; height: 74px; }
+
+.plant-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.plant-info h3 { font-size: var(--fs-lg); line-height: 1.2; margin-bottom: var(--sp-1); }
+.plant-meta { font-size: var(--fs-sm); color: var(--muted); line-height: 1.45; }
+.plant-meta b { color: var(--text); font-weight: 700; }
+.due-text { color: var(--danger-ink); font-weight: 700; }
+.plant-actions {
+  display: flex; gap: 9px; margin-top: auto; padding-top: var(--sp-2);
+  align-items: center; justify-content: flex-end;
+}
+
+/* Care-task buttons. The tints are identity, not theme: water is the blue of
+   water and mist is the blue-green of a spray, in every theme. */
+.action-sq {
+  width: 46px; height: 46px; border-radius: var(--radius-sm);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+}
+.action-sq:active { transform: scale(.9); }
+.action-sq-water {
+  background: linear-gradient(155deg, #FFFFFF 0%, #E4F0FB 55%, #CBE1F6 100%);
+  border: 1px solid rgba(42, 98, 153, 0.30);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 5px 12px rgba(42, 98, 153, 0.18);
+}
+.action-sq-mist {
+  background: linear-gradient(155deg, #FFFFFF 0%, #E1F5F2 55%, #C6EBE6 100%);
+  border: 1px solid rgba(28, 104, 98, 0.30);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 5px 12px rgba(28, 104, 98, 0.18);
+}
+.action-sq-water:hover, .action-sq-mist:hover {
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 7px 16px rgb(var(--brand-rgb) / .22);
+}
+.action-sq-ghost { background: var(--brand-wash); }
+.action-sq svg { width: 38px; height: 38px; }
+.action-sq:disabled { opacity: .35; cursor: default; }
+
+/* The rain question, riding on the corner of a plant tile. */
+.plant-tile-wrap { position: relative; }
+.rain-bubble {
+  position: absolute; top: -7px; right: -7px; z-index: 2;
+  min-width: 26px; height: 26px; border-radius: 50%;
+  background: var(--danger); color: var(--on-dark); border: 2px solid #fff;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  animation: rainPulse 1.6s ease infinite;
+}
+/* The ring is the --danger solid spreading out. The kit publishes no
+   --danger-rgb, and inventing one here would be a token the kit can't honour,
+   so these two stay literal and must be changed with --danger. */
+@keyframes rainPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 83, 61, .45); }
+  50%      { box-shadow: 0 0 0 8px rgba(224, 83, 61, 0); }
+}
+
+/* ── Notification popover: the insides ───────────────────────────────────── */
+/* The shell is the kit's .popover-wrap / .popover — same tail, same dismiss
+   behaviour. Everything below is this app's content and stays here. */
+
+.notif-tabs {
+  display: flex; gap: 3px; margin-bottom: var(--sp-3);
+  background: var(--brand-wash); border-radius: var(--radius-xs); padding: 3px;
+}
+.notif-tabs button {
+  flex: 1; border: none; background: none; border-radius: 8px;
+  padding: 7px 2px; min-height: var(--tap); cursor: pointer;
+  font-size: var(--fs-xs); font-weight: 800; color: var(--brand);
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-1);
+}
+.notif-tabs button.is-active { background: var(--brand-deep); color: var(--on-brand); }
+/* was 9.5px — under the 11px floor, and it is a live count, not decoration */
+.notif-tabs .cnt {
+  font-size: var(--fs-xs); line-height: 1.5; min-width: 17px;
+  border-radius: var(--radius-pill);
+  background: rgb(var(--brand-rgb) / .16); padding: 0 var(--sp-1);
+}
+.notif-tabs button.is-active .cnt { background: rgb(255 255 255 / .28); }
+
+.notif-item {
+  display: flex; align-items: center; gap: 10px;
+  border-radius: var(--radius-xs); padding: 9px 10px; margin-bottom: 6px;
+  cursor: pointer; border: 1px solid transparent;
+}
+.notif-item .n-name { font-weight: 700; font-size: var(--fs-md); line-height: 1.25; }
+.notif-item .n-sub  { font-size: var(--fs-xs); color: var(--muted); }
+.notif-item svg { flex-shrink: 0; }
+.notif-item:active { transform: scale(.985); }
+
+/* One status, one set of values. "Water due" and "rain to confirm" are the same
+   two statuses the tags on a plant card show, so both consumers read the same
+   triad — this is where they had drifted, water inked #4A7FAB in one rule and
+   #3C6E99 in another, and rain reaching for var(--red-border) which had never
+   been declared and so silently always took its fallback. */
+.notif-item-water { background: var(--info-wash);   border-color: var(--info-line);   color: var(--info-ink); }
+.notif-item-rain  { background: var(--danger-wash); border-color: var(--danger-line); color: var(--danger-ink); }
+/* Feed is the brand: fertiliser is the "growing" task. Mist has no status
+   counterpart — its blue-green is the identity of a spray bottle. */
+.notif-item-feed  { background: var(--brand-wash);  border-color: var(--brand-line);  color: var(--brand); }
+.notif-item-mist  { background: #E3F5F2;            border-color: #BCE3DB;            color: #2F7D72; }
+
+/* one-tap log, right inside the popover */
+.n-log {
+  flex-shrink: 0; width: var(--tap); height: var(--tap); border-radius: 13px;
+  border: 1px solid rgb(255 255 255 / .9); background: rgb(255 255 255 / .75);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+.n-log:hover  { background: #fff; }
+.n-log:active { transform: scale(.88); }
+.n-log svg { width: 22px; height: 22px; }
+.notif-empty { text-align: center; padding: var(--sp-3) 6px; color: var(--muted); font-size: var(--fs-sm); }
+
+/* ── Weather card ────────────────────────────────────────────────────────── */
+/* NOT the kit's .stat: .wx-stat is an inline metric on a dark gradient, while
+   .stat is a padded tile on --surface-2. Renaming them would paint tiles
+   inside this card. They stay .wx-*. */
+
+.weather-card {
+  background: linear-gradient(135deg, var(--brand-deep) 0%, #2D6A4F 100%);
+  color: var(--on-dark); border: none;
+}
+.weather-card .wx-row { display: flex; align-items: center; gap: var(--sp-3); }
+.weather-card .wx-main { flex: 1; }
+.weather-card .wx-temp { font-family: var(--font-display); font-size: var(--fs-3xl); font-weight: 700; line-height: 1; }
+.weather-card .wx-desc { font-size: var(--fs-sm); opacity: .85; }
+.weather-card .wx-hilo { text-align: right; font-size: var(--fs-sm); opacity: .85; }
+.weather-card .wx-title { font-weight: 700; }
+.weather-card .wx-stats { display: flex; gap: var(--sp-4); margin-top: var(--sp-3); flex-wrap: wrap; justify-content: center; }
+.weather-card .wx-stat { font-size: var(--fs-sm); opacity: .9; display: flex; align-items: center; gap: 5px; }
+.weather-card .rain-note {
+  margin-top: var(--sp-3); padding: 9px var(--sp-3); border-radius: var(--radius-xs);
+  background: rgb(255 255 255 / .14); font-size: var(--fs-sm);
+  display: flex; gap: var(--sp-2); align-items: center;
+}
+.weather-card-link { cursor: pointer; }
+
+/* ── Catalogue picker ────────────────────────────────────────────────────── */
+/* NOT the kit's .choice-grid: this is 3 columns on a phone where .choice-grid
+   is 2, and .clatin — the italic binomial — has no equivalent there. */
+
+.catalog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.catalog-item {
+  border: 1.5px solid transparent; background: var(--surface);
+  border-radius: var(--radius-sm); padding: 10px 6px var(--sp-2);
+  text-align: center; cursor: pointer;
+  /* a long binomial has to wrap inside a ~96px column, never widen it */
+  min-width: 0; overflow-wrap: anywhere;
+}
+.catalog-item.is-selected { border-color: var(--brand); background: var(--brand-wash); }
+.catalog-item svg { width: 52px; height: 52px; }
+.catalog-item .cname  { font-size: var(--fs-xs); font-weight: 700; line-height: 1.2; }
+/* was 9.5px, under the 11px floor. At --fs-xs the binomial wraps to two lines
+   in a 3-column phone grid, which is why the row is allowed to grow. */
+.catalog-item .clatin { font-size: var(--fs-xs); color: var(--muted-2); font-style: italic; line-height: 1.25; }
+
+/* ── Room picker ─────────────────────────────────────────────────────────── */
+
+.zone-pick { display: flex; flex-direction: column; gap: 6px; }
+.zone-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-xs);
+  padding: 10px var(--sp-3); min-height: var(--tap);
+  cursor: pointer; font-size: var(--fs-md); color: var(--text); text-align: left;
+}
+.zone-row.is-selected { border-color: var(--brand); background: var(--brand-wash); }
+.zone-row .zname { font-weight: 600; }
+.zone-row .zname small { color: var(--muted); font-weight: 500; }
+
+/* ── Floor plan ──────────────────────────────────────────────────────────── */
+/* Geometry, transforms and z-index below are load-bearing and stay exactly as
+   authored — the marker's translate(-50%,-85%) puts the pot's base on the point
+   you tapped rather than its centre, and the ::after triangle points at it. */
+
+.plan-wrap {
+  position: relative; overflow: hidden;
+  /* the plan runs its own pan/pinch on pointer events; the browser must not
+     also scroll or zoom underneath it */
+  touch-action: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  height: calc(100dvh - 210px); min-height: 380px;
+  box-shadow: var(--shadow-card);
+}
+.plan-canvas { position: absolute; transform-origin: 0 0; }
+.plan-canvas img { display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+
+.plan-marker {
+  /* width/height set inline: scales with zoom, clamped 28–54px */
+  position: absolute; transform: translate(-50%, -85%);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(145deg, rgba(116, 198, 157, 0.45), rgba(255, 255, 255, 0.85));
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 5px 12px rgb(var(--brand-rgb) / .22);
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.plan-marker svg { width: 80%; height: 80%; pointer-events: none; }
+.plan-marker img { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; pointer-events: none; }
+.plan-marker::after {
+  content: ''; position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+  border: 7px solid transparent; border-top-color: rgba(255, 255, 255, 0.9); border-bottom: none;
+}
+.plan-marker.jiggle { animation: jiggle .28s ease-in-out infinite; cursor: grabbing; z-index: 5; }
+@keyframes jiggle {
+  0%, 100% { transform: translate(-50%, -85%) rotate(-3.5deg); }
+  50%      { transform: translate(-50%, -85%) rotate(3.5deg); }
+}
+.plan-marker .marker-tag { position: absolute; top: -12px; right: -14px; transform: none; }
+
+/* overlapping plants collapse into a count chip; tap zooms in */
+.cluster-chip {
+  position: absolute; transform: translate(-50%, -50%);
+  border-radius: 50%; cursor: pointer;
+  background: rgba(255, 255, 255, 0.94);
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  font-family: var(--font-display); font-weight: 800; color: var(--brand-deep);
+  box-shadow: 0 5px 14px rgb(var(--brand-rgb) / .25);
+  transition: transform var(--dur-fast) ease;
+}
+.cluster-chip:active { transform: translate(-50%, -50%) scale(.92); }
+/* same three statuses the day tags use, read from the same tokens */
+.cluster-chip-ok   { border: 3px solid var(--ok); }
+.cluster-chip-soon { border: 3px solid var(--warn); }
+.cluster-chip-due  { border: 3px solid var(--danger); animation: rainPulse 1.6s ease infinite; }
+
+/* window = wall segment drawn at real size; position/size set inline */
+.window-marker {
+  position: absolute; border-radius: 3px;
+  background: var(--info); border: 1.5px solid #fff;
+  box-shadow: 0 2px 6px rgb(var(--brand-rgb) / .3);
+  cursor: grab; touch-action: none;
+}
+.window-marker-draft { opacity: .65; border-style: dashed; pointer-events: none; }
+.window-marker .facing {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0; border: 6px solid transparent; border-bottom: none;
+  border-top: 9px solid var(--warn);
+  pointer-events: none;
+}
+.facing-out { bottom: -10px; rotate: 180deg; }
+.facing-in  { top: -10px; }
+
+/* Near-transparent fills: floor plans have their own colours — the dashed
+   border + label chip carry the zone identity instead of a tint.
+   The alphas have to be applied to the colour itself, and the kit publishes a
+   raw triple for the brand only (--brand-rgb), so `shade` reads its token and
+   `direct` cannot. Those two numbers are --warn spelled out; change them with
+   it, or add --warn-rgb to the kit and come back here. */
+.zone-rect { position: absolute; border-radius: 8px; border: 2px dashed; pointer-events: none; }
+.zone-rect-direct  { background: rgb(233 162 59 / .05);  border-color: rgb(233 162 59 / .85); color: var(--warn-ink); }
+.zone-rect-partial { background: rgb(116 198 157 / .06); border-color: var(--brand-soft);     color: var(--brand); }
+.zone-rect-shade   { background: rgb(var(--brand-rgb) / .04); border-color: var(--brand);     color: var(--brand-deep); }
+.zone-rect-erasable { pointer-events: auto; cursor: pointer; }
+
+.zone-chip {
+  position: absolute; top: 4px; left: 4px; max-width: calc(100% - 8px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.9); border-radius: var(--radius-pill);
+  padding: 2px 9px; font-size: var(--fs-xs); font-weight: 800;
+  box-shadow: 0 1px 4px rgb(var(--brand-rgb) / .18);
+}
+
+/* The plan's own chip strip. Kept separate from the kit's .chip-row because it
+   sits directly above a touch-action:none canvas and its horizontal drag is the
+   one gesture allowed in that band. */
+.plan-toolbar {
+  display: flex; gap: var(--sp-2); margin-bottom: 10px; overflow-x: auto; padding: 2px;
+  touch-action: pan-x; /* this strip is the one place a sideways drag is wanted */
+  scrollbar-width: none; /* fade edge hints at more chips instead of a scrollbar */
+  -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, #000 90%, transparent);
+}
+.plan-toolbar::-webkit-scrollbar { display: none; }
+.plan-toolbar-stacked { margin-top: -2px; }
+
+.compass {
+  position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 6;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; color: var(--danger); font-size: var(--fs-xs);
+  box-shadow: var(--shadow-card);
+}
+.compass-needle { display: inline-block; }
+.plan-hint {
+  position: absolute; bottom: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 6;
+  background: rgb(var(--brand-rgb) / .85); color: var(--on-dark);
+  font-size: var(--fs-sm); font-weight: 600;
+  padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-pill); white-space: nowrap;
+}
+.cal-dot {
+  position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--danger); border: 2.5px solid #fff; transform: translate(-50%, -50%);
+  box-shadow: 0 2px 6px rgb(0 0 0 / .3);
+}
+.plan-footnote { margin-top: 10px; }
+.plan-remove { color: var(--danger-ink); }
+
+/* the big rotating North arrow on the orientation sheet and onboarding step */
+.north-dial { font-size: 44px; display: inline-block; color: var(--danger); }
+.north-dial-lg {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 54px; color: var(--danger);
+  text-shadow: 0 2px 8px rgb(255 255 255 / .9);
+}
+.north-value { font-weight: 800; }
+.north-block { margin: 10px 0 18px; }
+.north-stage { position: relative; display: inline-block; margin: 0 auto; }
+.range { width: 100%; }
+
+/* ── Small shared bits ───────────────────────────────────────────────────── */
+
+/* A portrait bigger than the kit's 46px header .avatar — the account screen and
+   the last onboarding step both lead with one. */
+.avatar-lg, .avatar-md {
+  margin: 0 auto var(--sp-3); border-radius: 50%;
+  overflow: hidden; border: 3px solid var(--brand);
+}
+.avatar-lg { width: 92px; height: 92px; }
+.avatar-md { width: 84px; height: 84px; }
+.avatar-lg svg, .avatar-lg img,
+.avatar-md svg, .avatar-md img { width: 100%; height: 100%; display: block; }
+
+/* a .row-icon promoted to the illustration at the top of an onboarding step */
+.icon-lead { width: 64px; height: 64px; margin: 0 auto var(--sp-3); }
+.mark-lg { width: 110px; height: 110px; margin: 0 auto var(--sp-3); }
+/* onboarding's centred column of controls: narrower than the reading width */
+.ob-field, .ob-btn { max-width: 280px; margin-inline: auto; }
+.ob-field { text-align: left; }
+.ob-gap { margin-top: 10px; }
+/* Each step is itself a flex column filling the page, which is what gives the
+   kit's `.ob-cta { margin-top: auto }` something to push against. */
+.ob-step { flex: 1; display: flex; flex-direction: column; }
+/* .ob-cta pins the button to the bottom of the step; this keeps a gap when the
+   step is short enough that "the bottom" is right under the content. */
+.ob-cta-gap { margin-top: var(--sp-5); }
+.ob-or { margin: 10px 0; }
+.north-readout { margin: var(--sp-2) 0; }
+
+/* A run of .list-row inside a card. The wrapper is load-bearing: it is what
+   makes the kit's `.list-row:last-child { border-bottom: none }` land on the
+   last row of the GROUP rather than the last row of the card. Several cards on
+   the account screen put a form field or a button strip between two groups. */
+.row-group-divided { margin-top: 6px; border-top: 1px solid var(--border); }
+.row-group-divided .list-row:last-child { border-bottom: none; }
+
+/* a card whose children are inline facts rather than rows */
+.fact-row { display: flex; gap: var(--sp-3); flex-wrap: wrap; font-size: var(--fs-sm); }
+/* a horizontal pair of actions or fields */
+.inline-actions { display: flex; gap: var(--sp-2); }
+.stack-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* the button strip that follows a row inside a card */
+.row-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); flex-wrap: wrap; }
+/* a run of chips returned by a search */
+.result-chips { margin-top: var(--sp-2); }
+.result-chips .chip { margin: var(--sp-1) 6px 0 0; }
+/* a search field sharing its line with a button */
+.search-bar-inline { flex: 1; margin-bottom: 0; }
+.profile-card { padding-top: var(--sp-5); }
+
+.latin { font-style: italic; }
+/* a <label> wrapping a hidden file input, styled as a button or chip */
+.as-file { cursor: pointer; }
+/* the paragraph under a sheet heading, before the first control */
+.sheet-lead { margin-bottom: var(--sp-3); }
+.sheet-cta { margin-top: var(--sp-4); }
+/* a status line sitting between two blocks on a page rather than in a card */
+.note-inline { margin: 0 2px var(--sp-2); font-size: var(--fs-sm); }
+.sheet-ident { display: flex; gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-3); }
+.sheet-ident h2 { margin-bottom: 0; }
+.sheet-back { margin-bottom: var(--sp-3); }
+.field-inline { margin-top: var(--sp-2); margin-bottom: 0; }
+.field-note { font-size: var(--fs-xs); color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.field-narrow { max-width: 260px; margin-inline: auto; }
+.input-center { text-align: center; }
+.input-name { text-align: center; font-weight: 700; }
+
+/* The kit's .field-row splits a line evenly; this one field wants more room
+   (a three-way segmented control beside a number input). */
+.field-wide { flex: 1.4; }
+.date-inline { margin-top: var(--sp-2); }
+.tag-stack { margin-top: var(--sp-1); }
+
+/* PlantIcons artwork used at button scale rather than tile scale. */
+.art-sm { width: 17px; height: 17px; }
+.art-md { width: 20px; height: 20px; }
+.chevron-next { rotate: 180deg; color: var(--muted-2); }
+
+/* An explanatory card — prose, not rows. */
+.card-note { font-size: var(--fs-sm); }
+.note-body { margin-top: var(--sp-1); line-height: 1.6; }
+.online-search { margin-top: var(--sp-3); }
+.online-results { margin-top: 10px; }
+.empty-hint { padding: var(--sp-3) 0 6px; }
+.lede-tight { margin-top: -6px; margin-bottom: var(--sp-3); }
+.search-bar-tight { margin-bottom: 10px; }
+.chip-row-flush { margin-bottom: 0; }
+.list-row-tap { cursor: pointer; }
+.rain-head { margin-bottom: var(--sp-2); }
+.rain-title { margin-bottom: var(--sp-1); }
+.rain-actions { margin-top: var(--sp-4); }
+/* the rain question is an information prompt, not a warning — it takes the
+   same --info triad the "water due" tag and notification row read from */
+.icon-lead-info { background: var(--info-wash); color: var(--info-ink); }
+
+.note-danger { color: var(--danger-ink); font-size: var(--fs-sm); margin-top: var(--sp-2); }
+.card-danger-note { border-color: var(--danger-line); background: var(--danger-wash); color: var(--danger-ink); font-size: var(--fs-sm); font-weight: 600; }
+.link-brand { color: var(--brand); }
+
+.plan-preview { max-width: 100%; max-height: 220px; border-radius: var(--radius-xs); }
+.plan-preview-lg { max-height: 240px; opacity: .85; }
+.ok-line { font-weight: 700; color: var(--brand); margin-top: var(--sp-2); }
+
+.backfill-log { margin-top: var(--sp-2); line-height: 1.7; }
+.backfill-via { opacity: .75; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (min-width: 700px) {
+  .catalog-grid { grid-template-columns: repeat(5, 1fr); }
+  /* the sidebar takes 226px off the width, and the nav no longer floats over
+     the page, so the canvas can have the rest */
+  .plan-wrap { height: calc(100dvh - 230px); }
+}
+
+@media (min-width: 1100px) {
+  .catalog-grid { grid-template-columns: repeat(6, 1fr); }
+}
