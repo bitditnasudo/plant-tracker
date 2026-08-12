@@ -415,15 +415,15 @@ export default function PlanView() {
       <div className="main-content">
         <div className="section-head"><h2>Floor Plan</h2></div>
         <div className="card empty">
-          <Compass className="big" strokeWidth={1} style={{ color: 'var(--mint)' }} />
+          <Compass className="big" strokeWidth={1} />
           <h3>Map your home</h3>
           <p>Upload your house or apartment floor plan (PDF or SVG) to place plants, mark windows and set the light in each room.</p>
-          <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+          <label className="btn btn-primary as-file">
             {uploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
             {uploading ? 'Processing…' : 'Upload floor plan'}
             <input type="file" accept=".pdf,.svg,image/*" hidden onChange={onFile} disabled={uploading} />
           </label>
-          {uploadError && <p style={{ color: 'var(--red)', marginTop: 10 }}>{uploadError}</p>}
+          {uploadError && <p className="note-danger">{uploadError}</p>}
         </div>
       </div>
     )
@@ -440,28 +440,28 @@ export default function PlanView() {
       </div>
 
       <div className="plan-toolbar">
-        <button className={`chip${mode === 'window' ? ' active' : ''}`} onClick={() => toggleMode('window')}><AppWindow size={14} /> Windows</button>
-        <button className={`chip${mode === 'zone' ? ' active' : ''}`} onClick={() => toggleMode('zone')}><Square size={14} /> Light zones</button>
-        <button className={`chip${mode === 'measure' ? ' active' : ''}`} onClick={() => toggleMode('measure')}><Ruler size={14} /> {plan.metersPerUnit ? 'Measure' : 'Set scale'}</button>
-        <button className={`chip${mode === 'erase' ? ' active' : ''}`} onClick={() => toggleMode('erase')}><Eraser size={14} /> Erase</button>
+        <button className={`chip${mode === 'window' ? ' is-active' : ''}`} onClick={() => toggleMode('window')}><AppWindow size={14} /> Windows</button>
+        <button className={`chip${mode === 'zone' ? ' is-active' : ''}`} onClick={() => toggleMode('zone')}><Square size={14} /> Light zones</button>
+        <button className={`chip${mode === 'measure' ? ' is-active' : ''}`} onClick={() => toggleMode('measure')}><Ruler size={14} /> {plan.metersPerUnit ? 'Measure' : 'Set scale'}</button>
+        <button className={`chip${mode === 'erase' ? ' is-active' : ''}`} onClick={() => toggleMode('erase')}><Eraser size={14} /> Erase</button>
         <button className="chip" onClick={() => setNorthSheet(true)}><Compass size={14} /> North</button>
-        <label className="chip" style={{ cursor: 'pointer' }}>
+        <label className="chip as-file">
           <RefreshCw size={14} /> Replace
           <input type="file" accept=".pdf,.svg,image/*" hidden onChange={onFile} />
         </label>
       </div>
 
-      {uploadError && <p style={{ color: 'var(--red)', fontSize: 12.5, margin: '0 2px 8px' }}>{uploadError}</p>}
-      {uploading && <p className="muted" style={{ margin: '0 2px 8px', fontSize: 12.5 }}>Processing new plan…</p>}
+      {uploadError && <p className="note-inline note-danger">{uploadError}</p>}
+      {uploading && <p className="muted note-inline">Processing new plan…</p>}
 
       {unplaced.length > 0 && (
-        <div className="plan-toolbar" style={{ marginTop: -2 }}>
+        <div className="plan-toolbar plan-toolbar-stacked">
           {unplaced.map(p => {
             const cat = getCatalogPlant(p.catalogId)
             return (
               <button
                 key={p.id}
-                className={`chip${placingId === p.id ? ' active' : ''}`}
+                className={`chip${placingId === p.id ? ' is-active' : ''}`}
                 onClick={() => { setPlacingId(p.id); setMode('place') }}
               >
                 🪴 Place {p.nickname || cat?.name}
@@ -483,11 +483,11 @@ export default function PlanView() {
         {/* light zones */}
         {plan.zones.map(z => (
           <div
-            key={z.id} className={`zone-rect ${z.light}`}
+            key={z.id}
+            className={`zone-rect zone-rect-${z.light}${mode === 'erase' ? ' zone-rect-erasable' : ''}`}
             style={{
               left: z.x * view.s + view.tx, top: z.y * view.s + view.ty,
               width: z.w * view.s, height: z.h * view.s,
-              pointerEvents: mode === 'erase' ? 'auto' : 'none', cursor: 'pointer',
             }}
             onPointerDown={e => e.stopPropagation()}
             onClick={() => mode === 'erase' && setPlan({ zones: plan.zones.filter(x => x.id !== z.id) })}
@@ -497,7 +497,7 @@ export default function PlanView() {
         ))}
         {zoneDraft && (() => {
           const r = normRect(zoneDraft)
-          return <div className="zone-rect partial" style={{ left: r.x * view.s + view.tx, top: r.y * view.s + view.ty, width: r.w * view.s, height: r.h * view.s }} />
+          return <div className="zone-rect zone-rect-partial" style={{ left: r.x * view.s + view.tx, top: r.y * view.s + view.ty, width: r.w * view.s, height: r.h * view.s }} />
         })()}
 
         {/* windows: wall segments drawn at real size (scale with the plan) */}
@@ -518,14 +518,14 @@ export default function PlanView() {
               onPointerUp={e => winUp(e, w)}
               onPointerCancel={e => winUp(e, w)}
             >
-              <span className="facing" style={sign === 1 ? { bottom: -10, rotate: '180deg' } : { top: -10 }} />
+              <span className={`facing ${sign === 1 ? 'facing-out' : 'facing-in'}`} />
             </div>
           )
         })}
         {winDraft && (() => {
           const seg = segMeta(winDraft, view, plan.metersPerUnit)
           return (
-            <div className="window-marker draft" style={{
+            <div className="window-marker window-marker-draft" style={{
               left: seg.midX, top: seg.midY, width: seg.wPx, height: seg.hPx,
               transform: `translate(-50%, -50%) rotate(${seg.angle}deg)`,
             }} />
@@ -563,7 +563,7 @@ export default function PlanView() {
               >
                 {custom ? <img src={custom} alt="" /> : <PlantIcon icon={cat?.icon} />}
                 {showTags && (
-                  <span className={`tag marker-tag ${left <= 0 ? 'due' : left <= 1 ? 'soon' : 'ok'}`}>💧{left <= 0 ? '!' : `${left}d`}</span>
+                  <span className={`tag marker-tag ${left <= 0 ? 'tag-danger' : left <= 1 ? 'tag-warn' : 'tag-ok'}`}>💧{left <= 0 ? '!' : `${left}d`}</span>
                 )}
               </div>
             )
@@ -585,7 +585,7 @@ export default function PlanView() {
                 const cls = worst <= 0 ? 'due' : worst <= 1 ? 'soon' : 'ok'
                 return (
                   <button
-                    key={`cl-${i}`} className={`cluster-chip ${cls}`}
+                    key={`cl-${i}`} className={`cluster-chip cluster-chip-${cls}`}
                     style={{ left: c.x, top: c.y, width: markerPx + 10, height: markerPx + 10, fontSize: Math.round(markerPx * 0.34) }}
                     title={`${c.items.length} plants — tap to zoom in`}
                     onPointerDown={e => e.stopPropagation()}
@@ -601,7 +601,7 @@ export default function PlanView() {
         })()}
 
         <div className="compass" title={`North is ${plan.northDeg}° from plan-up`}>
-          <span style={{ display: 'inline-block', rotate: `${plan.northDeg}deg` }}>▲N</span>
+          <span className="compass-needle" style={{ rotate: `${plan.northDeg}deg` }}>▲N</span>
         </div>
         {hint && <div className="plan-hint">{hint}</div>}
       </div>
@@ -646,28 +646,27 @@ export default function PlanView() {
           <div className="sheet" onClick={e => e.stopPropagation()}>
             <div className="sheet-handle" />
             <h2>Building orientation</h2>
-            <p className="muted" style={{ marginBottom: 14 }}>
+            <p className="muted sheet-lead">
               Rotate until the arrow points to real-world North on your plan. Window facings (and their light) are computed from this.
             </p>
-            <div className="center" style={{ margin: '10px 0 18px' }}>
-              <div style={{ fontSize: 44, rotate: `${plan.northDeg}deg`, display: 'inline-block', color: 'var(--red)' }}>⬆</div>
-              <div style={{ fontWeight: 800 }}>{plan.northDeg}°</div>
+            <div className="center north-block">
+              <div className="north-dial" style={{ rotate: `${plan.northDeg}deg` }}>⬆</div>
+              <div className="north-value">{plan.northDeg}°</div>
             </div>
             <input
-              type="range" min="0" max="359" step="1" value={plan.northDeg}
-              style={{ width: '100%' }}
+              type="range" min="0" max="359" step="1" value={plan.northDeg} className="range"
               onChange={e => setPlan({ northDeg: +e.target.value })}
             />
-            <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} onClick={() => setNorthSheet(false)}>Done</button>
+            <button className="btn btn-primary btn-block sheet-cta" onClick={() => setNorthSheet(false)}>Done</button>
           </div>
         </div>
       )}
 
       {freshDetail && <PlantDetailModal plant={freshDetail} onClose={() => setDetailPlant(null)} />}
 
-      <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+      <p className="muted plan-footnote">
         Pinch or scroll to zoom · drag to pan · press and hold a plant until it shakes to move it ·{' '}
-        <a href="#" onClick={e => { e.preventDefault(); if (confirm('Remove the floor plan and all windows/zones?')) clearPlan() }} style={{ color: 'var(--red)' }}>remove plan</a>
+        <a href="#" className="plan-remove" onClick={e => { e.preventDefault(); if (confirm('Remove the floor plan and all windows/zones?')) clearPlan() }}>remove plan</a>
       </p>
     </div>
   )
@@ -693,11 +692,11 @@ function ZoneSheet({ suggested, onSave, onClose }) {
           <label>Light in this room</label>
           <div className="seg">
             {['direct', 'partial', 'shade'].map(l => (
-              <button key={l} className={light === l ? 'active' : ''} onClick={() => setLight(l)}>{LIGHT_LABELS[l]}</button>
+              <button key={l} className={light === l ? 'is-active' : ''} onClick={() => setLight(l)}>{LIGHT_LABELS[l]}</button>
             ))}
           </div>
           {suggested && (
-            <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            <p className="field-note">
               Suggested: <b>{LIGHT_LABELS[suggested.light]}</b> — {suggested.reason}. Adjust if you know better.
             </p>
           )}
@@ -716,7 +715,7 @@ function ScaleSheet({ onSave, onClose }) {
       <div className="sheet" onClick={e => e.stopPropagation()}>
         <div className="sheet-handle" />
         <h2>Set the scale</h2>
-        <p className="muted" style={{ marginBottom: 14 }}>
+        <p className="muted sheet-lead">
           How long is the measurement you just marked, in real life?
         </p>
         <div className="field">

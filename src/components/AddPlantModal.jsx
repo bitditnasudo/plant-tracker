@@ -134,16 +134,16 @@ export function AddPlantModal({ onClose }) {
         ) : !selected ? (
           <>
             <h2>Add a plant</h2>
-            <div className="search-bar" style={{ marginBottom: 10 }}>
+            <div className="search-bar search-bar-tight">
               <Search size={17} />
               <input
                 placeholder="Search the catalogue…" value={query}
                 onChange={e => { setQuery(e.target.value); setOnlineResults(null); setOnlineError(null) }}
               />
             </div>
-            <div className="plan-toolbar" style={{ marginBottom: 12 }}>
+            <div className="chip-row">
               {CATEGORIES.map(([id, label]) => (
-                <button key={id} className={`chip${category === id ? ' active' : ''}`} onClick={() => setCategory(id)}>{label}</button>
+                <button key={id} className={`chip${category === id ? ' is-active' : ''}`} onClick={() => setCategory(id)}>{label}</button>
               ))}
             </div>
 
@@ -157,44 +157,44 @@ export function AddPlantModal({ onClose }) {
               ))}
             </div>
             {results.length === 0 && !onlineResults && (
-              <p className="muted center" style={{ padding: '14px 0 6px' }}>Nothing in the built-in catalogue matches “{query}”.</p>
+              <p className="muted center empty-hint">Nothing in the built-in catalogue matches “{query}”.</p>
             )}
 
             {/* online search (Perenual) */}
             {query.trim().length >= 3 && (
               perenualKey ? (
-                <div style={{ marginTop: 14 }}>
-                  <button className="btn btn-mint btn-block" onClick={searchOnline} disabled={onlineBusy}>
+                <div className="online-search">
+                  <button className="btn btn-soft btn-block" onClick={searchOnline} disabled={onlineBusy}>
                     {onlineBusy ? <Loader2 size={16} className="spin" /> : <Globe size={16} />}
                     {onlineBusy ? 'Searching 10,000+ species…' : `Search online for “${query.trim()}”`}
                   </button>
                   {onlineResults?.length > 0 && (
-                    <div className="card row-list" style={{ marginTop: 10 }}>
+                    <div className="card online-results">
                       {onlineResults.slice(0, 8).map(r => (
-                        <div key={r.perenualId} className="row" style={{ cursor: 'pointer' }} onClick={() => !importingId && importOnline(r)}>
+                        <div key={r.perenualId} className="list-row list-row-tap" onClick={() => !importingId && importOnline(r)}>
                           <div className="row-icon"><Globe size={16} /></div>
                           <div className="grow">
-                            {r.name} {r.perenualId > FREE_TIER_MAX_ID && <span className="tag soon">care data estimated</span>}
-                            <small style={{ fontStyle: 'italic' }}>{r.latin}</small>
+                            {r.name} {r.perenualId > FREE_TIER_MAX_ID && <span className="tag tag-warn">care data estimated</span>}
+                            <small className="latin">{r.latin}</small>
                           </div>
-                          {importingId === r.perenualId ? <Loader2 size={16} className="spin" /> : <ChevronLeft size={16} style={{ rotate: '180deg', color: 'var(--muted2)' }} />}
+                          {importingId === r.perenualId ? <Loader2 size={16} className="spin" /> : <ChevronLeft size={16} className="chevron-next" />}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               ) : (
-                <p className="muted center" style={{ marginTop: 12, fontSize: 12.5 }}>
+                <p className="muted center online-search">
                   Can’t find it? Add a free <b>Perenual API key</b> in the Account tab to search 10,000+ more species online.
                 </p>
               )
             )}
-            {onlineError && <p className="center" style={{ color: 'var(--red)', marginTop: 10, fontSize: 12.5 }}>{onlineError}</p>}
+            {onlineError && <p className="center note-danger">{onlineError}</p>}
 
             {/* last resort, and the only one that always works */}
             <button
-              className={`btn btn-block ${results.length === 0 ? 'btn-primary' : 'btn-ghost'}`}
-              style={{ marginTop: 14 }}
+              className={`btn btn-block ${results.length === 0 ? 'btn-primary' : 'btn-secondary'}`}
+              
               onClick={() => setManual(true)}
             >
               <PencilLine size={16} />
@@ -203,21 +203,21 @@ export function AddPlantModal({ onClose }) {
           </>
         ) : (
           <>
-            <button className="chip" onClick={() => setSelected(null)} style={{ marginBottom: 12 }}>
+            <button className="chip sheet-back" onClick={() => setSelected(null)}>
               <ChevronLeft size={14} /> Catalogue
             </button>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 12 }}>
-              <div className="plant-tile" style={{ width: 74, height: 74 }}><PlantIcon icon={selected.icon} /></div>
+            <div className="sheet-ident">
+              <div className="plant-tile plant-tile-md"><PlantIcon icon={selected.icon} /></div>
               <div>
-                <h2 style={{ marginBottom: 0 }}>{selected.name}</h2>
-                <div className="muted" style={{ fontStyle: 'italic' }}>{selected.latin}</div>
+                <h2>{selected.name}</h2>
+                <div className="muted latin">{selected.latin}</div>
                 {selected.source === 'manual'
-                  ? <span className="tag ok" style={{ marginTop: 4 }}>your own entry</span>
-                  : selected.isCustom && <span className="tag info" style={{ marginTop: 4 }}>from online database</span>}
+                  ? <span className="tag tag-ok tag-stack">your own entry</span>
+                  : selected.isCustom && <span className="tag tag-info tag-stack">from online database</span>}
               </div>
             </div>
 
-            <div className="card" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13 }}>
+            <div className="card fact-row">
               <span><Droplets size={13} /> every {selected.waterSummer}d (summer) / {selected.waterWinter}d (winter)</span>
               <span><Sun size={13} /> {LIGHT_LABELS[selected.light]}</span>
               <span><Sparkles size={13} /> feed every {selected.fertilize}d</span>
@@ -225,11 +225,11 @@ export function AddPlantModal({ onClose }) {
 
             {selected.estimated && (
               <>
-                <p className="muted" style={{ fontSize: 12.5, margin: '2px 2px 10px' }}>
+                <p className="muted note-inline">
                   This species’ care data needs a paid Perenual plan, so these are <b>estimates</b> — adjust them if you know better:
                 </p>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <div className="field" style={{ flex: 1 }}>
+                <div className="field-row">
+                  <div className="field">
                     <label>Days between waterings (summer)</label>
                     <input
                       type="number" min="1" max="60" value={selected.waterSummer}
@@ -239,11 +239,11 @@ export function AddPlantModal({ onClose }) {
                       }}
                     />
                   </div>
-                  <div className="field" style={{ flex: 1.4 }}>
+                  <div className="field field-wide">
                     <label>Ideal light</label>
                     <div className="seg">
                       {['direct', 'partial', 'shade'].map(l => (
-                        <button key={l} className={selected.light === l ? 'active' : ''} onClick={() => setSelected(s => ({ ...s, light: l }))}>{LIGHT_LABELS[l].split(' ')[0]}</button>
+                        <button key={l} className={selected.light === l ? 'is-active' : ''} onClick={() => setSelected(s => ({ ...s, light: l }))}>{LIGHT_LABELS[l].split(' ')[0]}</button>
                       ))}
                     </div>
                   </div>
@@ -255,14 +255,14 @@ export function AddPlantModal({ onClose }) {
               <label>Nickname (optional)</label>
               <input value={nickname} placeholder={selected.name} onChange={e => setNickname(e.target.value)} />
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div className="field" style={{ flex: 1 }}>
+            <div className="field-row">
+              <div className="field">
                 <label>Pot material</label>
                 <select value={potMaterial} onChange={e => setPotMaterial(e.target.value)}>
                   {POT_MATERIALS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </div>
-              <div className="field" style={{ flex: 1 }}>
+              <div className="field">
                 <label>Pot colour</label>
                 <select value={potColorId} onChange={e => setPotColorId(e.target.value)}>
                   {POT_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -279,8 +279,8 @@ export function AddPlantModal({ onClose }) {
               <div className="field">
                 <label>Where does it live?</label>
                 <div className="seg">
-                  <button className={!isOutside ? 'active' : ''} onClick={() => setIsOutside(false)}>Inside</button>
-                  <button className={isOutside ? 'active' : ''} onClick={() => setIsOutside(true)}>Outside</button>
+                  <button className={!isOutside ? 'is-active' : ''} onClick={() => setIsOutside(false)}>Inside</button>
+                  <button className={isOutside ? 'is-active' : ''} onClick={() => setIsOutside(true)}>Outside</button>
                 </div>
               </div>
             )}
@@ -295,26 +295,26 @@ export function AddPlantModal({ onClose }) {
               <label>Last watered</label>
               <div className="seg">
                 {LAST_WATERED.map(o => (
-                  <button key={o.label} className={watered === o.days ? 'active' : ''} onClick={() => setWatered(o.days)}>{o.label}</button>
+                  <button key={o.label} className={watered === o.days ? 'is-active' : ''} onClick={() => setWatered(o.days)}>{o.label}</button>
                 ))}
               </div>
               {watered === 'other' && (
                 <input
-                  type="date" style={{ marginTop: 8 }}
+                  type="date" className="date-inline"
                   max={formatISO(new Date(), { representation: 'date' })}
                   value={wateredDate}
                   onChange={e => setWateredDate(e.target.value)}
                 />
               )}
               {selected.outdoor && (
-                <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                <p className="field-note">
                   If it rained since then and this plant lives outside, the dashboard will ask whether it got wet and adjust the schedule.
                 </p>
               )}
             </div>
 
             <button className="btn btn-primary btn-block" onClick={save} disabled={watered === 'other' && !wateredDate}>Add plant</button>
-            <p className="muted center" style={{ fontSize: 12, marginTop: 10 }}>
+            <p className="field-note center">
               You can place it on your floor plan from the Plan tab.
             </p>
           </>

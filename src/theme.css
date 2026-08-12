@@ -1,0 +1,239 @@
+/* ============================================================================
+   THEME — the only stylesheet a new app is expected to edit.
+   ============================================================================
+   Everything below is a token. index.css consumes these and never hardcodes a
+   colour, radius, size or shadow, so re-skinning an app means editing this file
+   and nothing else.
+
+   Two reference themes are kept at the bottom of the file (Budget = purple,
+   Plant = green). Uncomment one, or write a third — the shape is the contract.
+
+   THIS APP: reference theme B (green / glass / gradient page) is uncommented at
+   the bottom and is what actually renders. The purple block below is the kit
+   default, kept verbatim so the file stays diffable against the template — read
+   it as documentation of the token shape, not as this app's palette.
+   ========================================================================== */
+
+:root {
+  /* ── Brand ramp ────────────────────────────────────────────────────────────
+     The five brand steps every component reaches for. `--brand` is the one that
+     appears most (active nav pill, primary button, focus ring); `--brand-soft`
+     and `--brand-deep` are the two ends of the primary gradient; `--brand-wash`
+     and `--brand-line` are the tinted background / hairline pair used by chips,
+     selected states and soft cards.                                          */
+  --brand:        #7E49B3;
+  --brand-soft:   #A67DD4;
+  --brand-deep:   #5A2D8E;
+  --brand-wash:   #F0E8FB;
+  --brand-line:   #D4B8F0;
+  --on-brand:     #FFFFFF;
+
+  /* Brand as a raw RGB triple, so shadows can be tinted with an alpha of their
+     own: rgb(var(--brand-rgb) / .14). Keep it in sync with --brand-deep. */
+  --brand-rgb:    90 45 142;
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────────
+     --bg is the page. --bg-2 is the far end of the page gradient; set it equal
+     to --bg for a flat page (Budget) or lighter for a wash (Plant).
+     --surface-blur is 0 for opaque cards and ~6px for glass cards — it only has
+     an effect when --surface is translucent.                                 */
+  --bg:            #F2EEF9;
+  --bg-2:          #F2EEF9;
+  --surface:       #FFFFFF;
+  --surface-2:     #FAF7FE;
+  --surface-blur:  0px;
+  --border:        #E5DCF5;
+  --border-strong: #CFC0E8;
+
+  /* ── Text ──────────────────────────────────────────────────────────────────
+     --muted is verified AA on --surface; --muted-on-bg is verified AA on --bg,
+     which is a different (usually tinted) backdrop. Small text that sits
+     directly on the page rather than in a card must use --muted-on-bg — both
+     source apps hit this bug and patched it after the fact.                  */
+  /* Three greys, and which surface each is legal on. All measured with the WCAG
+     formula against this theme's own --surface and --bg:
+
+       --muted        #64748B   4.76:1 on surface   4.16:1 on bg  → cards only
+       --muted-2      #71717A   4.83:1 on surface   4.23:1 on bg  → cards only
+       --muted-on-bg  #665A78   6.37:1 on surface   5.57:1 on bg  → anywhere
+
+     Re-measure all three when you change --surface or --bg. A tone that passes
+     on white routinely fails on a tinted page, which is the single most
+     repeated bug across both source apps. --muted-2 must still clear 4.5:1 on
+     surface: Budget's old second grey (#A09BB0) sat at 2.69:1 and is rejected. */
+  --text:        #141414;
+  --muted:       #64748B;
+  --muted-2:     #71717A;
+  --muted-on-bg: #665A78;
+  --on-dark:     #FFFFFF;
+
+  /* ── Status ────────────────────────────────────────────────────────────────
+     Four semantic roles. Components never say "green" or "red", they say --ok /
+     --danger — a token named after a hue cannot be re-themed, and "--blue-bg"
+     is meaningless in a purple app.
+
+     Each role is a solid plus a TINT TRIAD:
+       --x        solid fill  (progress bars, dots, chart marks)
+       --x-wash   soft background
+       --x-line   hairline border on that wash
+       --x-ink    text/icon colour on that wash
+
+     Any component showing a status consumes the same triad, so a tag and a
+     highlighted row can never drift apart — which is exactly what happened in
+     Plant Tracker, where the same status was inked #4A7FAB in one rule and
+     #3C6E99 in another.                                                      */
+  --ok:          #00A86B;
+  --ok-wash:     #E6F9F1;
+  --ok-line:     #BBF7D0;
+  --ok-ink:      #00875A;
+
+  --warn:        #F59E0B;
+  --warn-wash:   #FEF3C7;
+  --warn-line:   #FDE68A;
+  --warn-ink:    #92400E;
+
+  --danger:      #E53935;
+  --danger-wash: #FEF2F2;
+  --danger-line: #FECACA;
+  --danger-ink:  #C62828;
+
+  --info:        #1D4ED8;
+  --info-wash:   #EFF6FF;
+  --info-line:   #BFDBFE;
+  --info-ink:    #1E40AF;
+
+  --neutral-wash: #F1F5F9;
+  --neutral-line: #E2E8F0;
+  --neutral-ink:  #64748B;
+
+  /* ── Shape ─────────────────────────────────────────────────────────────────
+     Three steps plus a pill. --radius is cards and sheets, --radius-sm is
+     buttons and inline blocks, --radius-xs is inputs and small tiles.
+
+     22/14/10 is Plant Tracker's scale, adopted wholesale. Budget Tracker's
+     18/12/9 was the sole outlier across all three steps, and its 9px was too
+     tight to read as deliberate. Budget migrates; Plant changes nothing.     */
+  --radius:      22px;
+  --radius-sm:   14px;
+  --radius-xs:   10px;
+  --radius-pill: 99px;
+
+  /* ── Elevation ─────────────────────────────────────────────────────────────
+     Brand-tinted, never neutral grey — a grey shadow under a tinted page reads
+     as dirt. Three levels: resting card, floating thing, brand-coloured glow
+     under a primary control.                                                 */
+  --shadow-card:  0 8px 24px  rgb(var(--brand-rgb) / .09);
+  --shadow-pop:   0 16px 40px rgb(var(--brand-rgb) / .18);
+  --shadow-brand: 0 4px 14px  rgb(var(--brand-rgb) / .34);
+
+  /* ── Type ──────────────────────────────────────────────────────────────────
+     Two families: Sora sets headings and figures, Inter sets everything else.
+     Seven sizes, and nothing may invent an eighth — both source apps drifted to
+     9 / 9.5 / 11.5 / 12.5 / 13.5 / 18.5px and the inconsistency shows.       */
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* 11px is the floor. Both apps shipped 8–10px text, which compounds with the
+     contrast limits above into something genuinely hard to read. Sizes step up
+     once at ≥1100px (below) so desktop isn't served phone-sized type.        */
+  --fs-xs:  11px;   /* micro-labels, tag text, metadata */
+  --fs-sm:  12.5px; /* secondary body, table cells */
+  --fs-md:  14px;   /* body default */
+  --fs-lg:  16px;   /* emphasised body, form controls (16px = no iOS zoom) */
+  --fs-xl:  20px;   /* card and sheet headings */
+  --fs-2xl: 26px;   /* page headings */
+  --fs-3xl: 34px;   /* hero figures */
+
+  /* ── Space ─────────────────────────────────────────────────────────────────
+     A 4px grid. Gaps and paddings come from here so rhythm survives edits.   */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* ── Layout ────────────────────────────────────────────────────────────────
+     --shell-w is the phone app column. Above 700px the shell turns into
+     sidebar + content and these three widths take over.                      */
+  --shell-w:      440px;
+  --sidebar-w:    226px;
+  --content-w:    860px;
+  --content-w-lg: 1040px;
+  --reading-w:    620px; /* settings / onboarding: short rows, narrow column */
+  --tap:          44px;  /* minimum interactive size, everywhere, no exceptions */
+
+  /* Measure — the cap on a line of prose, in characters, not pixels.
+     A card allowed to run the full 1040px desktop column sets ~130 characters
+     per line; comfortable reading is 45–75. `ch` units make the cap follow the
+     font size instead of drifting when the type scale steps up. */
+  --measure:      68ch;
+  --measure-tight: 44ch; /* centred copy: shorter still, or the eye loses the ragged left */
+
+  /* ── Motion ────────────────────────────────────────────────────────────────
+     --ease-out for things settling, --ease-pop for things arriving.          */
+  --dur-fast: .12s;
+  --dur-mid:  .22s;
+  --dur-slow: .28s;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-pop: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* One step up on large screens. Because every rule in index.css sizes from
+   these tokens, this single block scales the whole app — neither source app
+   could do this, which is why their desktop layouts rendered phone-sized text. */
+@media (min-width: 1100px) {
+  :root {
+    --fs-xs:  12px;
+    --fs-sm:  13.5px;
+    --fs-md:  15px;
+    --fs-lg:  17px;
+    --fs-xl:  22px;
+    --fs-2xl: 28px;
+    --fs-3xl: 38px;
+  }
+}
+
+/* ============================================================================
+   REFERENCE THEME A — Budget Tracker (purple, opaque, flat page)
+   ============================================================================
+   Note: no radius override. Budget's 18/12/9 is retired in favour of the kit's
+   22/14/10 — that migration is the point of adopting the kit.
+:root {
+  --brand: #7E49B3; --brand-soft: #A67DD4; --brand-deep: #5A2D8E;
+  --brand-wash: #F0E8FB; --brand-line: #D4B8F0; --brand-rgb: 90 45 142;
+  --bg: #F2EEF9; --bg-2: #F2EEF9;
+  --surface: #FFFFFF; --surface-2: #FAF7FE; --surface-blur: 0px;
+  --border: #E5DCF5; --border-strong: #CFC0E8;
+  --text: #141414; --muted: #64748B; --muted-2: #71717A; --muted-on-bg: #665A78;
+}
+   ========================================================================== */
+
+/* ============================================================================
+   REFERENCE THEME B — Plant Tracker (green, glass, gradient page)  ← ACTIVE
+   ============================================================================
+   This is the app's own palette, so it is uncommented and wins over the block
+   above. Radius matches the kit default, so it isn't repeated here.
+
+   The status inks are the values this app had already drifted to in two places
+   — named once here, so a tag and a notification row showing the same status
+   cannot disagree again (see index.css §5 / app.css "care tasks").
+
+   Measured with the WCAG formula against THIS theme's --surface (the glass card
+   flattened onto --bg) and --bg:
+     --muted        #527A66   4.84:1 on surface
+     --muted-2      #5C7C69   4.62:1 on surface   → cards only, clears AA
+     --muted-on-bg  #46705C   5.12:1 on --bg      → anywhere
+   Re-measure all three if --surface or --bg changes.                        */
+:root {
+  --brand: #40916C; --brand-soft: #74C69D; --brand-deep: #1B4332;
+  --brand-wash: #D8F3DC; --brand-line: #74C69D; --brand-rgb: 27 67 50;
+  --bg: #E9F8EC; --bg-2: #F7FDF8;
+  --surface: rgba(255,255,255,.82); --surface-2: rgba(255,255,255,.45);
+  --surface-blur: 6px;
+  --border: rgba(27,67,50,.10); --border-strong: rgba(27,67,50,.22);
+  --text: #1B4332; --muted: #527A66; --muted-2: #5C7C69; --muted-on-bg: #46705C;
+  --danger: #E0533D; --danger-wash: #FDEDEA; --danger-line: #F3CFC7; --danger-ink: #B0472F;
+  --warn:   #E9A23B; --warn-wash:   #FBF3DF; --warn-line:   #F0DCB0; --warn-ink:   #A76B10;
+  --info:   #7FB2DC; --info-wash:   #EAF3FB; --info-line:   #CFE3F3; --info-ink:   #3C6E99;
+}

@@ -6,32 +6,9 @@ import { generatePlantIcon } from '../lib/gemini.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { resolveAppearance } from '../lib/potOptions.js'
 import { Avatar } from '../components/PlantIcons.jsx'
-
-// the little guy — pixel-art Claude critter for the footer
-function ClaudeCritter(props) {
-  return (
-    <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" shapeRendering="crispEdges" {...props}>
-      <g fill="#2293F5">
-        <rect x="52" y="0" width="16" height="40" />
-        <rect x="40" y="12" width="40" height="16" />
-        <rect x="97" y="9" width="10" height="27" />
-        <rect x="89" y="17" width="26" height="10" />
-        <rect x="77" y="30" width="9" height="9" />
-      </g>
-      <g fill="#CC785C">
-        <rect x="15" y="45" width="90" height="60" />
-        <rect x="0" y="82" width="15" height="16" />
-        <rect x="105" y="82" width="15" height="16" />
-        <rect x="23" y="105" width="8" height="15" />
-        <rect x="38" y="105" width="8" height="15" />
-        <rect x="74" y="105" width="8" height="15" />
-        <rect x="89" y="105" width="8" height="15" />
-      </g>
-      <rect x="30" y="59" width="8" height="16" fill="#000" />
-      <rect x="82" y="59" width="8" height="16" fill="#000" />
-    </svg>
-  )
-}
+/* The critter used to be inlined here and in Budget's own copy, and the two had
+   already drifted in how the caption was styled. One copy, in the kit. */
+import { Signature } from '../components/Signature.jsx'
 
 export default function Account() {
   const { state, icons, saveIcon, setProfile, setSettings, exportData, importData, sync, connectGoogle, disconnectGoogle, syncNow, calStatus, setCalendarReminders, runCalendarSync, backfill, backfillClassifications } = useStore()
@@ -124,23 +101,21 @@ export default function Account() {
   }
 
   return (
-    <div className="main-content narrow">
+    <div className="main-content is-narrow">
       <div className="section-head"><h2>Account</h2></div>
 
-      <div className="card center" style={{ paddingTop: 22 }}>
-        <div style={{ width: 92, height: 92, margin: '0 auto 10px', borderRadius: '50%', overflow: 'hidden', border: '3px solid var(--olive)' }}>
-          <Avatar style={{ width: '100%', height: '100%' }} />
-        </div>
-        <div className="field" style={{ maxWidth: 260, margin: '0 auto' }}>
+      <div className="card center profile-card">
+        <div className="avatar-lg"><Avatar /></div>
+        <div className="field field-narrow">
           <input
-            className="center" style={{ textAlign: 'center', fontWeight: 700 }}
+            className="input-name"
             value={state.profile.name} placeholder="Your name"
             onChange={e => setProfile({ name: e.target.value })}
           />
         </div>
-        <div className="field" style={{ maxWidth: 260, margin: '0 auto' }}>
+        <div className="field field-narrow">
           <input
-            style={{ textAlign: 'center' }}
+            className="input-center"
             value={state.profile.email} placeholder="email (optional)" type="email"
             onChange={e => setProfile({ email: e.target.value })}
           />
@@ -148,20 +123,20 @@ export default function Account() {
       </div>
 
       <div className="card">
-        <div className="row-list">
-          <div className="row">
+        <div>
+          <div className="list-row">
             <div className="row-icon"><MapPin size={18} /></div>
             <div className="grow">
               Location
               <small>{state.settings.location ? state.settings.location.label : 'Not set — needed for weather & rain'}</small>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={useGPS} disabled={busy}>
+            <button className="btn btn-secondary btn-sm" onClick={useGPS} disabled={busy}>
               {busy ? <Loader2 size={14} className="spin" /> : <LocateFixed size={14} />} GPS
             </button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <div className="search-bar" style={{ flex: 1, marginBottom: 0 }}>
+        <div className="row-actions">
+          <div className="search-bar search-bar-inline">
             <Search size={15} />
             <input
               placeholder="Search city…" value={cityQuery}
@@ -169,22 +144,26 @@ export default function Account() {
               onKeyDown={e => e.key === 'Enter' && findCity()}
             />
           </div>
-          <button className="btn btn-mint btn-sm" onClick={findCity} disabled={busy || !cityQuery.trim()}>Find</button>
+          <button className="btn btn-soft btn-sm" onClick={findCity} disabled={busy || !cityQuery.trim()}>Find</button>
         </div>
-        {cityResults && cityResults.map(r => (
-          <button
-            key={`${r.lat},${r.lon}`} className="chip" style={{ marginTop: 8, marginRight: 6 }}
-            onClick={() => { setSettings({ location: r }); setCityResults(null); setCityQuery('') }}
-          >
-            <MapPin size={12} /> {r.label}
-          </button>
-        ))}
+        {cityResults && (
+          <div className="result-chips">
+            {cityResults.map(r => (
+              <button
+                key={`${r.lat},${r.lon}`} className="chip"
+                onClick={() => { setSettings({ location: r }); setCityResults(null); setCityQuery('') }}
+              >
+                <MapPin size={12} /> {r.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card">
-        <div className="row-list">
-          <div className="row">
-            <div className="row-icon" style={sync.connected ? { background: 'var(--beige)', color: 'var(--olive)' } : {}}>
+        <div>
+          <div className="list-row">
+            <div className="row-icon">
               {sync.connected ? <Cloud size={18} /> : <CloudOff size={18} />}
             </div>
             <div className="grow">
@@ -199,14 +178,14 @@ export default function Account() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <div className="row-actions">
           {sync.connected ? (
             <>
-              <button className="btn btn-mint btn-sm" onClick={syncNow} disabled={sync.syncing}>
+              <button className="btn btn-soft btn-sm" onClick={syncNow} disabled={sync.syncing}>
                 {sync.syncing ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
                 {sync.syncing ? 'Syncing…' : 'Sync now'}
               </button>
-              <button className="btn btn-ghost btn-sm" onClick={disconnectGoogle}>Disconnect</button>
+              <button className="btn btn-secondary btn-sm" onClick={disconnectGoogle}>Disconnect</button>
             </>
           ) : (
             <button className="btn btn-primary btn-sm" onClick={connectGoogle}>
@@ -214,11 +193,11 @@ export default function Account() {
             </button>
           )}
         </div>
-        {sync.error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 8 }}>{sync.error}</p>}
+        {sync.error && <p className="note-danger">{sync.error}</p>}
 
         {sync.connected && (
-          <div className="row-list" style={{ marginTop: 6, borderTop: '1px solid var(--border)' }}>
-            <div className="row" style={{ borderBottom: 'none' }}>
+          <div className="row-group-divided">
+            <div className="list-row">
               <div className="row-icon"><BellRing size={18} /></div>
               <div className="grow">
                 Calendar watering reminders
@@ -229,19 +208,19 @@ export default function Account() {
                 </small>
               </div>
               <button
-                className={`btn btn-sm ${state.settings.calendarReminders ? 'btn-primary' : 'btn-ghost'}`}
+                className={`btn btn-sm ${state.settings.calendarReminders ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setCalendarReminders(!state.settings.calendarReminders)}
               >
                 {state.settings.calendarReminders ? 'On' : 'Turn on'}
               </button>
             </div>
             {calStatus.error && (
-              <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 2 }}>
+              <p className="note-danger">
                 {calStatus.error}{' '}
                 {calStatus.error.includes('permission') && (
-                  <button className="btn btn-ghost btn-sm" onClick={connectGoogle}>Reconnect</button>
+                  <button className="btn btn-secondary btn-sm" onClick={connectGoogle}>Reconnect</button>
                 )}
-                <button className="btn btn-ghost btn-sm" onClick={runCalendarSync}>Retry</button>
+                <button className="btn btn-secondary btn-sm" onClick={runCalendarSync}>Retry</button>
               </p>
             )}
           </div>
@@ -249,8 +228,8 @@ export default function Account() {
       </div>
 
       <div className="card">
-        <div className="row-list">
-          <div className="row">
+        <div>
+          <div className="list-row">
             <div className="row-icon"><KeyRound size={18} /></div>
             <div className="grow">
               Perenual API key
@@ -258,14 +237,14 @@ export default function Account() {
             </div>
           </div>
         </div>
-        <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
+        <div className="field field-inline">
           <input
             type="password" placeholder="sk-…" value={state.settings.perenualKey}
             onChange={e => setSettings({ perenualKey: e.target.value.trim() })}
           />
         </div>
-        <div className="row-list" style={{ marginTop: 6, borderTop: '1px solid var(--border)' }}>
-          <div className="row" style={{ borderBottom: 'none' }}>
+        <div className="row-group-divided">
+          <div className="list-row">
             <div className="row-icon"><Wind size={18} /></div>
             <div className="grow">
               Wind classification
@@ -276,27 +255,27 @@ export default function Account() {
                   ` Last run: ${new Date(state.settings.classificationsBackfilledAt).toLocaleString()}`}
               </small>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={() => backfillClassifications({ force: true })} disabled={backfill.running}>
+            <button className="btn btn-secondary btn-sm" onClick={() => backfillClassifications({ force: true })} disabled={backfill.running}>
               {backfill.running ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
               {backfill.running ? `${backfill.done}/${backfill.total}` : 'Redo all'}
             </button>
           </div>
         </div>
         {backfill.results.length > 0 && (
-          <div className="muted" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.7 }}>
+          <div className="muted backfill-log">
             {backfill.results.map((r, i) => (
               <div key={`${r.name}-${i}`}>
-                {r.name}: <b>{r.cls}</b> <span style={{ opacity: .75 }}>· {r.via}</span>
+                {r.name}: <b>{r.cls}</b> <span className="backfill-via">· {r.via}</span>
               </div>
             ))}
           </div>
         )}
-        {backfill.error && <p style={{ color: 'var(--red)', fontSize: 12.5, marginTop: 6 }}>{backfill.error}</p>}
+        {backfill.error && <p className="note-danger">{backfill.error}</p>}
       </div>
 
       <div className="card">
-        <div className="row-list">
-          <div className="row">
+        <div>
+          <div className="list-row">
             <div className="row-icon"><KeyRound size={18} /></div>
             <div className="grow">
               Gemini API key
@@ -304,44 +283,44 @@ export default function Account() {
             </div>
           </div>
         </div>
-        <div className="field" style={{ marginTop: 8, marginBottom: 0 }}>
+        <div className="field field-inline">
           <input
             type="password" placeholder="AIza…" value={state.settings.geminiKey}
             onChange={e => setSettings({ geminiKey: e.target.value.trim() })}
           />
         </div>
         {state.settings.geminiKey && (
-          <div style={{ marginTop: 10 }}>
-            <button className="btn btn-ghost btn-sm" onClick={regenerateAllIcons} disabled={regenBusy}>
+          <div className="row-actions">
+            <button className="btn btn-secondary btn-sm" onClick={regenerateAllIcons} disabled={regenBusy}>
               {regenBusy ? <Loader2 size={14} className="spin" /> : <Wand2 size={14} />}
               {regenBusy ? 'Regenerating…' : 'Regenerate all icons (new style)'}
             </button>
-            {regenMsg && <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>{regenMsg}</p>}
+            {regenMsg && <p className="field-note">{regenMsg}</p>}
           </div>
         )}
       </div>
 
       <div className="card">
-        <div className="row-list">
-          <div className="row">
+        <div>
+          <div className="list-row">
             <div className="row-icon"><Database size={18} /></div>
             <div className="grow">Your data<small>Stored only on this device. Back it up to a file.</small></div>
           </div>
-          <div style={{ display: 'flex', gap: 8, paddingTop: 6 }}>
-            <button className="btn btn-ghost btn-sm" onClick={doExport}><Download size={14} /> Export</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current.click()}><Upload size={14} /> Import</button>
+          <div className="row-actions">
+            <button className="btn btn-secondary btn-sm" onClick={doExport}><Download size={14} /> Export</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => fileRef.current.click()}><Upload size={14} /> Import</button>
             <input ref={fileRef} type="file" accept=".json" hidden onChange={doImport} />
           </div>
-          <div className="row">
+          <div className="list-row">
             <div className="row-icon"><Leaf size={18} /></div>
             <div className="grow">Plants tracked<small>{state.plants.length} plants · {state.plan.windows.length} windows · {state.plan.zones.length} zones</small></div>
           </div>
-          <div className="row">
+          <div className="list-row">
             <div className="row-icon"><RotateCcw size={18} /></div>
             <div className="grow">Setup guide<small>Replay the first-launch walkthrough (your data is kept)</small></div>
-            <button className="btn btn-ghost btn-sm" onClick={() => setSettings({ onboardingDone: false })}>Replay</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setSettings({ onboardingDone: false })}>Replay</button>
           </div>
-          <div className="row">
+          <div className="list-row">
             <div className="row-icon"><Info size={18} /></div>
             <div className="grow">
               Version <b>{APP_VERSION}</b>
@@ -355,12 +334,9 @@ export default function Account() {
         </div>
       </div>
 
-      {msg && <p className="muted center" style={{ marginTop: 4 }}>{msg}</p>}
+      {msg && <p className="muted center">{msg}</p>}
 
-      <div className="center" style={{ padding: '20px 0 8px' }}>
-        <ClaudeCritter style={{ width: 46, height: 46 }} />
-        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>made with the loving help of Claude</p>
-      </div>
+      <Signature />
     </div>
   )
 }

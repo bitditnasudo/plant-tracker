@@ -99,11 +99,11 @@ export function ManualPlantForm({ onCancel, onCreate }) {
 
   return (
     <>
-      <button className="chip" onClick={onCancel} style={{ marginBottom: 12 }}>
+      <button className="chip sheet-back" onClick={onCancel}>
         <ChevronLeft size={14} /> Catalogue
       </button>
       <h2><PencilLine size={18} /> Add a plant yourself</h2>
-      <p className="muted" style={{ fontSize: 12.5, marginBottom: 14 }}>
+      <p className="muted sheet-lead">
         For anything the catalogues don’t have. Only the name and how often you water it
         really matter — everything else has a sensible default you can change later.
       </p>
@@ -119,11 +119,11 @@ export function ManualPlantForm({ onCancel, onCreate }) {
 
       {geminiKey ? (
         <div className="field">
-          <button className="btn btn-mint btn-block" disabled={!name.trim() || looking} onClick={runLookup}>
+          <button className="btn btn-soft btn-block" disabled={!name.trim() || looking} onClick={runLookup}>
             {looking ? <Loader2 size={16} className="spin" /> : null}
             {looking ? 'Looking it up…' : 'Complete with Gemini 🪄'}
           </button>
-          <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+          <p className="field-note">
             {lookup ? (
               <>
                 Filled in <b>{lookup.filled.join(', ') || 'nothing — you had it all'}</b>
@@ -136,19 +136,19 @@ export function ManualPlantForm({ onCancel, onCreate }) {
               'Fill in whatever you know, then let Gemini complete the rest from the name. Anything you set yourself is left alone.'
             )}
           </p>
-          {lookupError && <p style={{ color: 'var(--red)', fontSize: 12, marginTop: 6 }}>{lookupError}</p>}
+          {lookupError && <p className="note-danger">{lookupError}</p>}
         </div>
       ) : (
-        <p className="muted" style={{ fontSize: 11.5, margin: '-4px 2px 14px' }}>
+        <p className="field-note lede-tight">
           Add a Gemini API key in Account and this form can look the care details up for you.
         </p>
       )}
 
       <div className="field">
         <label>Type — sets the icon and the wind-sensitivity guess</label>
-        <div className="plan-toolbar" style={{ marginBottom: 0 }}>
+        <div className="chip-row chip-row-flush">
           {CATEGORIES.filter(([k]) => k !== 'all').map(([k, label]) => (
-            <button key={k} className={`chip${category === k ? ' active' : ''}`} onClick={() => pickCategory(k)}>{label}</button>
+            <button key={k} className={`chip${category === k ? ' is-active' : ''}`} onClick={() => pickCategory(k)}>{label}</button>
           ))}
         </div>
       </div>
@@ -157,36 +157,36 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <label>Ideal light</label>
         <div className="seg">
           {['direct', 'partial', 'shade'].map(l => (
-            <button key={l} className={light === l ? 'active' : ''} onClick={() => { setLight(l); mark('light') }}>{LIGHT_LABELS[l]}</button>
+            <button key={l} className={light === l ? 'is-active' : ''} onClick={() => { setLight(l); mark('light') }}>{LIGHT_LABELS[l]}</button>
           ))}
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="field-row">
+        <div className="field">
           <label>Water every … days *</label>
           <input type="number" min="1" max="120" inputMode="numeric" value={summer}
             onChange={e => { setSummer(Math.max(1, Math.min(120, +e.target.value || 1))); mark('water') }} />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label>…in winter</label>
           <input type="number" min="1" max="120" inputMode="numeric"
             placeholder={String(effWinter)} value={winter ?? ''}
             onChange={e => { setWinter(e.target.value === '' ? null : Math.max(1, Math.min(120, +e.target.value))); mark('water') }} />
         </div>
       </div>
-      <p className="muted" style={{ fontSize: 11.5, marginTop: -6, marginBottom: 14 }}>
+      <p className="field-note lede-tight">
         Outdoor plants get this shortened automatically by wind and the container ceiling —
         enter the plant’s own needs, not what your balcony does to it.
       </p>
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div className="field" style={{ flex: 1 }}>
+      <div className="field-row">
+        <div className="field">
           <label>Mist every … days</label>
           <input type="number" min="1" max="60" inputMode="numeric" placeholder="never"
             value={mist} onChange={e => { setMist(e.target.value); mark('mist') }} />
         </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label>Feed every … days</label>
           <input type="number" min="7" max="365" inputMode="numeric" value={fertilize}
             onChange={e => { setFertilize(+e.target.value || 30); mark('feed') }} />
@@ -196,10 +196,10 @@ export function ManualPlantForm({ onCancel, onCreate }) {
       <div className="field">
         <label>Can it live outdoors?</label>
         <div className="seg">
-          <button className={!outdoor ? 'active' : ''} onClick={() => { setOutdoor(false); mark('outdoor') }}>Indoors only</button>
-          <button className={outdoor ? 'active' : ''} onClick={() => { setOutdoor(true); mark('outdoor') }}>Can go outside</button>
+          <button className={!outdoor ? 'is-active' : ''} onClick={() => { setOutdoor(false); mark('outdoor') }}>Indoors only</button>
+          <button className={outdoor ? 'is-active' : ''} onClick={() => { setOutdoor(true); mark('outdoor') }}>Can go outside</button>
         </div>
-        <p className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+        <p className="field-note">
           Only plants that can go outside get wind adjustment and rain confirmations.
         </p>
       </div>
@@ -208,7 +208,7 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         <label>Icon</label>
         <div className="catalog-grid">
           {ICON_KEYS.map(k => (
-            <div key={k} className={`catalog-item${icon === k ? ' sel' : ''}`}
+            <div key={k} className={`catalog-item${icon === k ? ' is-selected' : ''}`}
               onClick={() => { setIcon(k); mark('icon') }}>
               <PlantIcon icon={k} />
             </div>

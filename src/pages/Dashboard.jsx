@@ -19,11 +19,11 @@ function WeatherCard() {
 
   if (!loc) {
     return (
-      <div className="card weather-card" onClick={() => navigate('/account')} style={{ cursor: 'pointer' }}>
+      <div className="card weather-card weather-card-link" onClick={() => navigate('/account')}>
         <div className="wx-row">
           <MapPin size={22} />
           <div>
-            <div style={{ fontWeight: 700 }}>Set your location</div>
+            <div className="wx-title">Set your location</div>
             <div className="wx-desc">Enable weather and rain tracking in the Account tab</div>
           </div>
         </div>
@@ -41,11 +41,11 @@ function WeatherCard() {
     <div className="card weather-card">
       <div className="wx-row">
         <WxIcon size={46} strokeWidth={1.6} />
-        <div style={{ flex: 1 }}>
+        <div className="wx-main">
           <div className="wx-temp">{Math.round(weather.temp)}°</div>
           <div className="wx-desc">{desc} · {loc.label}</div>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 12, opacity: .85 }}>
+        <div className="wx-hilo">
           H {Math.round(weather.tMax)}° · L {Math.round(weather.tMin)}°
         </div>
       </div>
@@ -168,7 +168,7 @@ export default function Dashboard() {
           <small>Welcome,</small>
           <b>{state.profile.name || 'Plant lover'}!</b>
         </div>
-        <div className="notif-wrap" ref={bellRef}>
+        <div className="popover-wrap" ref={bellRef}>
           <button
             className="icon-btn" aria-label="Notifications"
             aria-expanded={showNotifs}
@@ -179,12 +179,12 @@ export default function Dashboard() {
           </button>
 
           {showNotifs && (
-            <div className="notif-bubble" role="dialog" aria-label="Today's tasks">
+            <div className="popover" role="dialog" aria-label="Today's tasks">
               <div className="notif-tabs" role="tablist">
                 {notifTabs.map(t => (
                   <button
                     key={t.key} role="tab" aria-selected={t.key === activeTab.key}
-                    className={t.key === activeTab.key ? 'active' : ''}
+                    className={t.key === activeTab.key ? 'is-active' : ''}
                     onClick={() => setNotifTab(t.key)}
                   >
                     {t.label}
@@ -199,7 +199,7 @@ export default function Dashboard() {
                 </div>
               ) : activeTab.items.map(({ plant, cat, left }) => (
                 <div
-                  key={plant.id} className={`notif-item ${activeTab.key}`}
+                  key={plant.id} className={`notif-item notif-item-${activeTab.key}`}
                   onClick={() => {
                     setShowNotifs(false)
                     // rain rows ask the same question as the red bubble on the card
@@ -208,7 +208,7 @@ export default function Dashboard() {
                   }}
                 >
                   <activeTab.Icon size={17} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="grow">
                     <div className="n-name">{plant.nickname || cat?.name}</div>
                     <div className="n-sub">
                       {activeTab.key === 'rain'
@@ -234,9 +234,7 @@ export default function Dashboard() {
       </div>
 
       {sync.error && (
-        <div className="card" style={{ borderColor: 'var(--red)', background: 'var(--red-bg)', color: 'var(--red)', fontSize: 13, fontWeight: 600 }}>
-          Sync problem: {sync.error}
-        </div>
+        <div className="card card-danger-note">Sync problem: {sync.error}</div>
       )}
 
       <WeatherCard />
@@ -246,9 +244,9 @@ export default function Dashboard() {
         <input placeholder="Search" value={query} onChange={e => setQuery(e.target.value)} />
       </div>
 
-      <div className="section-head" style={{ marginTop: 18 }}>
+      <div className="section-head">
         <h2>My Plants</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="section-head-aside">
           <span className="sub">{state.plants.length} total</span>
           <button
             className="chip"
@@ -268,7 +266,7 @@ export default function Dashboard() {
           <p>{query ? 'Try a different search.' : 'Tap the + button to add your first plant from the catalogue.'}</p>
         </div>
       ) : (
-        <div className="plant-grid">
+        <div className="card-grid">
           {plants.map(p => (
             <PlantCard key={p.id} plant={p} onOpen={setDetailPlant} onRain={setRainPlant} />
           ))}

@@ -31,8 +31,7 @@ function BottomNav({ onFab }) {
       {items.map(({ icon: Icon, label, to }) => {
         const active = path === to
         return (
-          <button key={to} onClick={() => navigate(to)}
-            className={`nav-item${active ? ' active' : ''}`}>
+          <button key={to} onClick={() => navigate(to)} className="nav-item">
             {active
               ? <div className="nav-pill"><Icon size={14} /><span>{label}</span></div>
               : <><Icon size={20} /><span className="nav-label">{label}</span></>
@@ -40,9 +39,15 @@ function BottomNav({ onFab }) {
           </button>
         )
       })}
-      {/* sidebar-only add button (the floating FAB covers phones) */}
-      <button className="nav-fab" onClick={onFab}>
-        <Plus size={18} /><span>Add plant</span>
+      {/* The primary action rides INSIDE the bar, last, as a pill — it is an
+          action, not a destination, so it closes the row rather than joining
+          the tabs. It used to float above the nav, which needed
+          right: max(18px, calc(50% - var(--shell-w)/2 + 18px)) to stay pinned
+          to the app column AND still covered the last plant card, which is why
+          .main-content reserved 176px at the bottom instead of 104px.
+          Three tabs plus one pill fits at 375px, so the labels stay. */}
+      <button className="fab" aria-label="Add plant" onClick={onFab}>
+        <Plus size={20} /><span className="fab-label">Add plant</span>
       </button>
     </nav>
   )
@@ -51,7 +56,6 @@ function BottomNav({ onFab }) {
 function AppShell() {
   const { state } = useStore()
   const [showAdd, setShowAdd] = useState(false)
-  const location = useLocation()
 
   if (!state.settings.onboardingDone) return <Onboarding />
 
@@ -64,12 +68,6 @@ function AppShell() {
         <Route path="/account" element={<Account />} />
         <Route path="*"        element={<Navigate to="/" replace />} />
       </Routes>
-      {/* add-plant FAB is contextual — not on the Account page */}
-      {location.pathname !== '/account' && (
-        <button className="fab" aria-label="Add plant" onClick={() => setShowAdd(true)}>
-          <Plus size={26} />
-        </button>
-      )}
       <BottomNav onFab={() => setShowAdd(true)} />
       {showAdd && <AddPlantModal onClose={() => setShowAdd(false)} />}
     </div>
