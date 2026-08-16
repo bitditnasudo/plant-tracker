@@ -375,12 +375,22 @@ export const SprayBottle = wrap('sb', id => (
    They are drawn standalone rather than through wrap() because they take a
    level and so cannot be a fixed picture. */
 
+/* The badge tiles are very light (luminance ~0.90), so WCAG 1.4.11's 3:1 for a
+ * graphic you have to recognise puts a hard ceiling on how bright the ink can
+ * be: anything above luminance 0.27 fails. Amber cannot get there and still
+ * look like sunlight — a compliant flat amber is ochre. So the sun and the
+ * clouds keep bright fills and earn their silhouette from a dark contour
+ * instead, which is what 1.4.11 is actually asking for. The *Edge colours are
+ * the ones carrying the ratio; measured against the tile each sits on:
+ *     sunEdge   3.61:1 on --warn-wash
+ *     cloudEdge 3.54:1 on --warn-wash
+ *     duskEdge  4.71:1 on --neutral-wash
+ * Water needs no contour — the drops' own gradient already reaches 5.66:1. */
 const CARE = {
   waterHi: '#CFE7FA', waterMid: '#5BA7E6', waterLow: '#2A6299',
-  sunHi:   '#FFE9A9', sunMid:   '#F5C542', sunLow:   '#D08A0E',
-  // Pale, but not white: these clouds sit on a pale tile and would vanish.
-  cloudHi: '#F4F9FC', cloudLow: '#A8BFCE',
-  duskHi:  '#D8E3EB', duskLow:  '#7C93A4',
+  sunHi:   '#FFE28C', sunMid:   '#F0AC18', sunLow:   '#C07A05', sunEdge: '#B3700A',
+  cloudHi: '#F7FBFD', cloudLow: '#B9CCD9', cloudEdge: '#6B8496',
+  duskHi:  '#DDE7ED', duskLow:  '#93A9B7', duskEdge:  '#56707F',
 }
 
 // One teardrop, sized by the radius of its round bottom: a semicircle for the
@@ -426,14 +436,25 @@ export function WaterNeedIcon({ level = 1, ...props }) {
   )
 }
 
-// A cloud is three overlapping discs sitting on a rounded bar — same fill, so
-// the outline reads as one shape.
-function Cloud({ discs, base, fill }) {
+/* A cloud is three overlapping discs sitting on a rounded bar — same fill, so
+   the outline reads as one shape.
+
+   Drawn twice. The first pass strokes every shape in the edge colour; the
+   second pass fills the same shapes on top and paints over all the strokes
+   that fell inside the union, leaving only the outer contour. That is the
+   cheapest way to outline a union of shapes without computing the union. */
+function Cloud({ discs, base, fill, edge }) {
   const [x, y, w, h] = base
-  return (
-    <g fill={fill}>
+  const shapes = (
+    <>
       {discs.map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} />)}
       <rect x={x} y={y} width={w} height={h} rx={h / 2} />
+    </>
+  )
+  return (
+    <g>
+      <g fill={edge} stroke={edge} strokeWidth="3.2" strokeLinejoin="round">{shapes}</g>
+      <g fill={fill}>{shapes}</g>
     </g>
   )
 }
@@ -445,16 +466,23 @@ const LIGHT_ART = {
   direct:  { sun: [32, 31, 14], rays: [0, 45, 90, 135, 180, 225, 270, 315], ray: [19, 27], cloud: null },
   partial: { sun: [24, 24, 11], rays: [180, 225, 270, 315], ray: [15, 22], cloud: {
     discs: [[30, 44, 10], [42, 39, 12], [51, 45, 7]], base: [21, 46, 35, 11],
-    hi: CARE.cloudHi, low: CARE.cloudLow } },
+    hi: CARE.cloudHi, low: CARE.cloudLow, edge: CARE.cloudEdge } },
   shade:   { sun: [30, 18, 10], rays: [225, 270, 315], ray: [13, 18], cloud: {
     discs: [[22, 40, 12], [37, 33, 15], [51, 42, 9]], base: [12, 42, 44, 13],
-    hi: CARE.duskHi, low: CARE.duskLow } },
+    hi: CARE.duskHi, low: CARE.duskLow, edge: CARE.duskEdge } },
 }
 
 export function LightIcon({ level = 'partial', ...props }) {
-  const art = LIGHT_ART[level] || LIGHT_ART.partial
+  const key = LIGHT_ART[level] ? level : 'partial'
+  const art = LIGHT_ART[key]
   const [cx, cy, r] = art.sun
   const [r0, r1] = art.ray
+  /* Every card puts its own copy of these defs in the document, and a duplicate
+     id means the FIRST one in document order paints them all. That is harmless
+     for the sun, which is the same everywhere, but the cloud is the whole
+     difference between partial and shade — sharing one id painted every shade
+     badge in the partial cloud's colours. The id carries the level. */
+  const cloudId = `care-cloud-${key}`
   return (
     <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" {...props}>
       <defs>
@@ -463,26 +491,34 @@ export function LightIcon({ level = 'partial', ...props }) {
           <stop offset="0.55" stopColor={CARE.sunMid} />
           <stop offset="1" stopColor={CARE.sunLow} />
         </linearGradient>
-        <linearGradient id="care-cloud" x1="0" y1="0" x2="0.3" y2="1">
-          <stop offset="0" stopColor={art.cloud?.hi || CARE.cloudHi} />
-          <stop offset="1" stopColor={art.cloud?.low || CARE.cloudLow} />
-        </linearGradient>
+        {art.cloud && (
+          <linearGradient id={cloudId} x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0" stopColor={art.cloud.hi} />
+            <stop offset="1" stopColor={art.cloud.low} />
+          </linearGradient>
+        )}
       </defs>
-      <g stroke={CARE.sunMid} strokeWidth="4.2" strokeLinecap="round">
-        {art.rays.map(a => {
-          const t = (a * Math.PI) / 180
-          return (
-            <line
-              key={a}
-              x1={cx + Math.cos(t) * r0} y1={cy + Math.sin(t) * r0}
-              x2={cx + Math.cos(t) * r1} y2={cy + Math.sin(t) * r1}
-            />
-          )
-        })}
-      </g>
-      <circle cx={cx} cy={cy} r={r} fill="url(#care-sun)" />
+      {/* Rays twice, dark under bright, so each one keeps a dark edge — the
+          same contour trick the cloud uses, and for the same reason. */}
+      {[[CARE.sunEdge, 6.6], [CARE.sunMid, 4.0]].map(([stroke, width]) => (
+        <g key={stroke} stroke={stroke} strokeWidth={width} strokeLinecap="round">
+          {art.rays.map(a => {
+            const t = (a * Math.PI) / 180
+            return (
+              <line
+                key={a}
+                x1={cx + Math.cos(t) * r0} y1={cy + Math.sin(t) * r0}
+                x2={cx + Math.cos(t) * r1} y2={cy + Math.sin(t) * r1}
+              />
+            )
+          })}
+        </g>
+      ))}
+      <circle cx={cx} cy={cy} r={r} fill="url(#care-sun)" stroke={CARE.sunEdge} strokeWidth="2.4" />
       <ellipse cx={cx - r * 0.3} cy={cy - r * 0.35} rx={r * 0.3} ry={r * 0.22} fill="#FFFFFF" opacity="0.45" />
-      {art.cloud && <Cloud discs={art.cloud.discs} base={art.cloud.base} fill="url(#care-cloud)" />}
+      {art.cloud && (
+        <Cloud discs={art.cloud.discs} base={art.cloud.base} edge={art.cloud.edge} fill={`url(#${cloudId})`} />
+      )}
     </svg>
   )
 }

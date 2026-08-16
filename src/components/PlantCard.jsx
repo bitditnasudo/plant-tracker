@@ -46,16 +46,20 @@ export function PlantCard({ plant, onOpen, onRain }) {
 
         <h3 className="plant-name">{plant.nickname || cat.name}</h3>
 
-        {/* The species at a glance: how thirsty, and how much sun. */}
+        {/* The species at a glance: how thirsty, and how much sun. role="img"
+            is load-bearing — a bare span has role generic, where naming is
+            prohibited, so the aria-label on one would simply be discarded and
+            these two facts would be silent. The svg inside is then hidden so
+            the badge is announced once, as its label. */}
         <div className="plant-habits">
-          <span className="care-badge care-badge-water" title={wNeedLabel} aria-label={wNeedLabel}>
-            <WaterNeedIcon level={wNeed} />
+          <span className="care-badge care-badge-water" role="img" title={wNeedLabel} aria-label={wNeedLabel}>
+            <WaterNeedIcon level={wNeed} aria-hidden="true" />
           </span>
           <span
             className={`care-badge care-badge-light${cat.light === 'shade' ? ' care-badge-shade' : ''}`}
-            title={LIGHT_LABELS[cat.light]} aria-label={LIGHT_LABELS[cat.light]}
+            role="img" title={LIGHT_LABELS[cat.light]} aria-label={LIGHT_LABELS[cat.light]}
           >
-            <LightIcon level={cat.light} />
+            <LightIcon level={cat.light} aria-hidden="true" />
           </span>
         </div>
 

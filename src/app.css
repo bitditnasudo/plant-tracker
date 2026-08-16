@@ -109,12 +109,17 @@
   .plant-card-main { grid-template-columns: 64px minmax(0, 1fr); }
   .plant-card .plant-tile { width: 64px; height: 64px; }
   .plant-tile-wrap { grid-row: 1; }
-  .plant-habits    { grid-column: 2; grid-row: 1; align-self: center; }
+  .plant-habits    { grid-column: 2; grid-row: 1; align-self: center; justify-self: start; }
   .plant-name      { grid-column: 1 / -1; grid-row: 2; }
   .plant-sched     { grid-column: 1 / -1; grid-row: 3; }
 }
 
-.plant-habits { display: flex; gap: var(--sp-2); }
+/* Two 38px badges and one gap come to 84px in a 92px column, so left-aligning
+   them leaves the pair sitting 8px off the tile's centre line — visible,
+   because the tile above is the thing the eye lines them up against. Centred
+   here; the two narrow steps below re-align them to a text edge instead, where
+   flush-left is the correct reading. */
+.plant-habits { display: flex; gap: var(--sp-2); justify-content: center; }
 
 /* Species traits, not actions — same pale tile as the care buttons so they
    sit in the same visual family, but no border, no shadow and no hover: it
@@ -136,7 +141,10 @@
   display: flex; flex-direction: column; justify-content: center; gap: var(--sp-2);
   margin-block: calc(-1 * var(--plant-card-pad));
   padding: var(--sp-3) var(--sp-2);
-  background: var(--surface-2);
+  /* --surface-2 is a *more* transparent white than --surface, so on a card
+     that is itself translucent the rail came out at 1.04:1 against it — a
+     region nobody could see. --brand-wash is opaque and reads as a rail. */
+  background: var(--brand-wash);
   border-left: 1px solid var(--border);
 }
 
