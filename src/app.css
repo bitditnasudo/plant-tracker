@@ -24,9 +24,121 @@
    ========================================================================== */
 
 /* ── Plant card ──────────────────────────────────────────────────────────── */
-/* The list itself is the kit's .card-grid (1 → 2 → 3 columns). */
+/* The list itself is the kit's .card-grid (1 → 2 → 3 columns).
+ *
+ * Two regions on a grid, never a flow: the care rail is welded to the right
+ * edge and the rest of the card sits to its left. Inside that, a 2×2 grid —
+ * tile and habit badges hold the left column, name and schedule the right.
+ * Because every part owns a grid track, the name can grow or wrap without
+ * ever reaching the artwork or the buttons; the old flex column let a long
+ * nickname push the controls around.
+ *
+ * The rail bleeds through the card's own padding, so .plant-card drops its
+ * right padding and clips to the card radius. */
 
-.plant-card { display: flex; gap: var(--sp-3); }
+.plant-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-right: 0;
+  overflow: hidden;
+  /* What the rail has to cancel to reach the card's edges. The kit steps .card
+     up to --sp-5 at 700px, so this mirrors that breakpoint — if the kit's card
+     padding ever moves, this moves with it. */
+  --plant-card-pad: var(--sp-4);
+}
+@media (min-width: 700px) {
+  .plant-card { --plant-card-pad: var(--sp-5); }
+}
+
+.plant-card-main {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  column-gap: var(--sp-3); row-gap: var(--sp-2);
+  align-content: start;
+  padding-right: var(--sp-3);
+}
+.plant-tile-wrap { grid-column: 1; grid-row: 1; }
+.plant-name      { grid-column: 2; grid-row: 1; align-self: center; }
+.plant-habits    { grid-column: 1; grid-row: 2; align-self: center; }
+.plant-sched     { grid-column: 2; grid-row: 2; }
+
+/* Centred against the tile, not against the card: it is the caption for that
+   picture. Two lines then ellipsis — a third line would push the schedule out
+   of line with the badges beside it. */
+.plant-name {
+  font-size: var(--fs-xl); line-height: 1.15;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
+}
+/* How much room the card gets has almost nothing to do with the viewport: the
+   kit's grid runs 1 → 2 → 3 columns and the sidebar takes 226px from 700px up,
+   so a 768px tablet hands the card 231px while a 430px phone hands it 398px.
+   A media query would read those two backwards. The card therefore measures
+   itself, and the steps below are stated in card widths.
+
+   They are CONTENT-box widths — what @container matches — so they read a good
+   deal smaller than the card's outer width: subtract the border and the card's
+   left padding. Everything to the right of the tile is the budget:
+       content = 92 (tile) + 12 (gap) + 8 (inset) + 63 (rail) + the text column
+   which is where 175 + the number I actually care about comes from. */
+.plant-card { container-type: inline-size; }
+
+/* Step 1 — below a 180px text column, "Last Watered: 10 days ago" (about
+   170px) no longer fits and every line would wrap. The schedule takes a
+   full-width row of its own instead and the badges tuck under the name, with
+   the tile spanning the two rows beside them. The card comes out shorter than
+   the wrapped version, not taller. */
+@container (max-width: 355px) {
+  .plant-tile-wrap { grid-row: 1 / span 2; align-self: start; }
+  .plant-habits    { grid-column: 2; grid-row: 2; justify-self: start; }
+  .plant-sched     { grid-column: 1 / -1; grid-row: 3; }
+}
+/* Below a 140px text column the name needs the smaller size to keep two-word
+   species on two lines rather than three. */
+@container (max-width: 315px) {
+  .plant-name { font-size: var(--fs-lg); }
+}
+
+/* Step 2 — a two-column grid on a portrait tablet leaves the card ~230px, and
+   once the rail and the tile have taken their share there is no column left to
+   put a name in at all. Only the badges stay beside the tile; name and
+   schedule each take the full width. The schedule does wrap here, which is why
+   the values are kept whole (see .plant-meta span) — it breaks after the
+   label, on purpose. */
+@container (max-width: 275px) {
+  .plant-card-main { grid-template-columns: 64px minmax(0, 1fr); }
+  .plant-card .plant-tile { width: 64px; height: 64px; }
+  .plant-tile-wrap { grid-row: 1; }
+  .plant-habits    { grid-column: 2; grid-row: 1; align-self: center; }
+  .plant-name      { grid-column: 1 / -1; grid-row: 2; }
+  .plant-sched     { grid-column: 1 / -1; grid-row: 3; }
+}
+
+.plant-habits { display: flex; gap: var(--sp-2); }
+
+/* Species traits, not actions — same pale tile as the care buttons so they
+   sit in the same visual family, but no border, no shadow and no hover: it
+   has to be obvious that these do nothing when tapped. */
+.care-badge {
+  width: 38px; height: 38px; border-radius: var(--radius-xs);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; cursor: inherit;
+}
+.care-badge svg { width: 28px; height: 28px; }
+.care-badge-water { background: var(--info-wash); }
+.care-badge-light { background: var(--warn-wash); }
+/* A shade plant on a sunny tile reads as a contradiction. */
+.care-badge-shade { background: var(--neutral-wash); }
+
+/* The rail: full-bleed to the right edge, controls centred in it whether
+   there are one or two. */
+.plant-rail {
+  display: flex; flex-direction: column; justify-content: center; gap: var(--sp-2);
+  margin-block: calc(-1 * var(--plant-card-pad));
+  padding: var(--sp-3) var(--sp-2);
+  background: var(--surface-2);
+  border-left: 1px solid var(--border);
+}
 
 /* The icons inside are shaded 3-D objects, so the tile stays pale and lets them
    carry the colour — the border and shadow keep it reading as a button. The
@@ -45,15 +157,12 @@
 /* the identity block at the top of a sheet — same tile, one step down */
 .plant-tile-md { width: 74px; height: 74px; }
 
-.plant-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.plant-info h3 { font-size: var(--fs-lg); line-height: 1.2; margin-bottom: var(--sp-1); }
 .plant-meta { font-size: var(--fs-sm); color: var(--muted); line-height: 1.45; }
 .plant-meta b { color: var(--text); font-weight: 700; }
+/* When the line does have to wrap it breaks between label and value, never
+   inside "5 days ago" — a stray "ago" on its own line reads as a mistake. */
+.plant-meta span { white-space: nowrap; }
 .due-text { color: var(--danger-ink); font-weight: 700; }
-.plant-actions {
-  display: flex; gap: 9px; margin-top: auto; padding-top: var(--sp-2);
-  align-items: center; justify-content: flex-end;
-}
 
 /* Care-task buttons. The tints are identity, not theme: water is the blue of
    water and mist is the blue-green of a spray, in every theme. */

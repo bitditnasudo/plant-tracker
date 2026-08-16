@@ -17,6 +17,28 @@ export const LIGHT_LABELS = {
   shade:   'Shade',
 }
 
+/* How thirsty a species is, as three steps a card can draw with 1–3 drops.
+ * Read off the growing-season interval, because that is the number the user
+ * actually lives with: roughly weekly is the ordinary houseplant rhythm and
+ * gets one drop; every five or six days means it likes staying damp; more
+ * often than that means it must not dry out at all.
+ *
+ * This is the species trait, deliberately NOT the effective interval from
+ * schedule.js — that one moves with wind, season and the user's override, and
+ * a badge that changed with the weather would be read as a warning. */
+export const WATER_NEED_LABELS = {
+  1: 'Water when it dries out',
+  2: 'Likes staying damp',
+  3: 'Keep constantly moist',
+}
+
+export function waterNeedLevel(cat) {
+  if (!cat) return 1
+  if (cat.waterSummer <= 4) return 3
+  if (cat.waterSummer <= 6) return 2
+  return 1
+}
+
 export const CATEGORIES = [
   ['all',       'All'],
   ['foliage',   'Foliage'],

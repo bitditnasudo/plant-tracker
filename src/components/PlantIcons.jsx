@@ -365,6 +365,128 @@ export const SprayBottle = wrap('sb', id => (
   </g>
 ))
 
+/* ── Care badges ───────────────────────────────────────────────────────────
+   The two species traits a plant card states at a glance: how thirsty the
+   plant is (one to three drops) and how much sun it wants. These follow the
+   same rule as the watering can and the spray bottle — the colour identifies
+   the thing rather than decorating it, so water is water-blue and sun is
+   sun-amber in every theme, and neither is a token.
+
+   They are drawn standalone rather than through wrap() because they take a
+   level and so cannot be a fixed picture. */
+
+const CARE = {
+  waterHi: '#CFE7FA', waterMid: '#5BA7E6', waterLow: '#2A6299',
+  sunHi:   '#FFE9A9', sunMid:   '#F5C542', sunLow:   '#D08A0E',
+  // Pale, but not white: these clouds sit on a pale tile and would vanish.
+  cloudHi: '#F4F9FC', cloudLow: '#A8BFCE',
+  duskHi:  '#D8E3EB', duskLow:  '#7C93A4',
+}
+
+// One teardrop, sized by the radius of its round bottom: a semicircle for the
+// belly, two curves drawn back up to the tip.
+function dropPath(cx, cy, r) {
+  const tip = cy - r * 2.3
+  return `M ${cx} ${tip}`
+    + ` C ${cx + r * 1.15} ${cy - r * 1.05} ${cx + r} ${cy - r * 0.5} ${cx + r} ${cy}`
+    + ` A ${r} ${r} 0 1 1 ${cx - r} ${cy}`
+    + ` C ${cx - r} ${cy - r * 0.5} ${cx - r * 1.15} ${cy - r * 1.05} ${cx} ${tip} Z`
+}
+
+// More drops means thirstier, so they get smaller as they multiply — the
+// silhouette has to stay inside the same box at every level.
+const DROPS = {
+  1: [[32, 40, 14]],
+  2: [[20, 42, 11], [44, 42, 11]],
+  3: [[15, 44, 9], [32, 44, 9], [49, 44, 9]],
+}
+
+export function WaterNeedIcon({ level = 1, ...props }) {
+  const drops = DROPS[level] || DROPS[1]
+  return (
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <defs>
+        <linearGradient id="care-drop" x1="0" y1="0" x2="0.7" y2="1">
+          <stop offset="0" stopColor={CARE.waterHi} />
+          <stop offset="0.5" stopColor={CARE.waterMid} />
+          <stop offset="1" stopColor={CARE.waterLow} />
+        </linearGradient>
+      </defs>
+      {drops.map(([cx, cy, r]) => (
+        <g key={cx}>
+          <path d={dropPath(cx, cy, r)} fill="url(#care-drop)" />
+          <ellipse
+            cx={cx - r * 0.34} cy={cy + r * 0.05} rx={r * 0.19} ry={r * 0.32}
+            transform={`rotate(-22 ${cx - r * 0.34} ${cy + r * 0.05})`}
+            fill="#FFFFFF" opacity="0.55"
+          />
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+// A cloud is three overlapping discs sitting on a rounded bar — same fill, so
+// the outline reads as one shape.
+function Cloud({ discs, base, fill }) {
+  const [x, y, w, h] = base
+  return (
+    <g fill={fill}>
+      {discs.map(([cx, cy, r]) => <circle key={cx} cx={cx} cy={cy} r={r} />)}
+      <rect x={x} y={y} width={w} height={h} rx={h / 2} />
+    </g>
+  )
+}
+
+/* Three states of one picture: the sun clear of cloud, half behind it, and
+   almost gone behind it. Keeping the same sun in all three is what makes them
+   read as a scale rather than as three unrelated symbols. */
+const LIGHT_ART = {
+  direct:  { sun: [32, 31, 14], rays: [0, 45, 90, 135, 180, 225, 270, 315], ray: [19, 27], cloud: null },
+  partial: { sun: [24, 24, 11], rays: [180, 225, 270, 315], ray: [15, 22], cloud: {
+    discs: [[30, 44, 10], [42, 39, 12], [51, 45, 7]], base: [21, 46, 35, 11],
+    hi: CARE.cloudHi, low: CARE.cloudLow } },
+  shade:   { sun: [30, 18, 10], rays: [225, 270, 315], ray: [13, 18], cloud: {
+    discs: [[22, 40, 12], [37, 33, 15], [51, 42, 9]], base: [12, 42, 44, 13],
+    hi: CARE.duskHi, low: CARE.duskLow } },
+}
+
+export function LightIcon({ level = 'partial', ...props }) {
+  const art = LIGHT_ART[level] || LIGHT_ART.partial
+  const [cx, cy, r] = art.sun
+  const [r0, r1] = art.ray
+  return (
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <defs>
+        <linearGradient id="care-sun" x1="0" y1="0" x2="0.6" y2="1">
+          <stop offset="0" stopColor={CARE.sunHi} />
+          <stop offset="0.55" stopColor={CARE.sunMid} />
+          <stop offset="1" stopColor={CARE.sunLow} />
+        </linearGradient>
+        <linearGradient id="care-cloud" x1="0" y1="0" x2="0.3" y2="1">
+          <stop offset="0" stopColor={art.cloud?.hi || CARE.cloudHi} />
+          <stop offset="1" stopColor={art.cloud?.low || CARE.cloudLow} />
+        </linearGradient>
+      </defs>
+      <g stroke={CARE.sunMid} strokeWidth="4.2" strokeLinecap="round">
+        {art.rays.map(a => {
+          const t = (a * Math.PI) / 180
+          return (
+            <line
+              key={a}
+              x1={cx + Math.cos(t) * r0} y1={cy + Math.sin(t) * r0}
+              x2={cx + Math.cos(t) * r1} y2={cy + Math.sin(t) * r1}
+            />
+          )
+        })}
+      </g>
+      <circle cx={cx} cy={cy} r={r} fill="url(#care-sun)" />
+      <ellipse cx={cx - r * 0.3} cy={cy - r * 0.35} rx={r * 0.3} ry={r * 0.22} fill="#FFFFFF" opacity="0.45" />
+      {art.cloud && <Cloud discs={art.cloud.discs} base={art.cloud.base} fill="url(#care-cloud)" />}
+    </svg>
+  )
+}
+
 export const Avatar = wrap('av', id => (
   <g>
     <circle cx="32" cy="32" r="30" fill={P.beige} />
