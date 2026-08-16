@@ -141,10 +141,15 @@
   display: flex; flex-direction: column; justify-content: center; gap: var(--sp-2);
   margin-block: calc(-1 * var(--plant-card-pad));
   padding: var(--sp-3) var(--sp-2);
-  /* --surface-2 is a *more* transparent white than --surface, so on a card
-     that is itself translucent the rail came out at 1.04:1 against it — a
-     region nobody could see. --brand-wash is opaque and reads as a rail. */
+  /* The rail reads as a recess: one step darker than the page the cards sit
+     on, so it looks cut into the card rather than painted onto it. Mixed from
+     the theme's own --bg and --text so it follows a re-theme, and mixed from
+     --bg rather than --bg-2 because --bg is the darker end of the page
+     gradient — deriving from the darker end is what keeps the rail below the
+     page at every scroll position. --brand-wash is the pre-color-mix
+     fallback. */
   background: var(--brand-wash);
+  background: color-mix(in srgb, var(--bg) 93%, var(--text));
   border-left: 1px solid var(--border);
 }
 
