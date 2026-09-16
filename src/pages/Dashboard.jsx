@@ -65,6 +65,8 @@ function WeatherCard() {
   )
 }
 
+const dueLabel = left => left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'
+
 export default function Dashboard() {
   const { state, weather, sync, setSettings, markWatered, markMisted, markFertilized } = useStore()
   const [query, setQuery] = useState('')
@@ -77,7 +79,7 @@ export default function Dashboard() {
   const lat = state.settings.location?.lat
 
   // what's actually due today, straight from the schedule
-  const { dueWater, dueMist, dueFeed, dueRain } = useMemo(() => {
+  const { dueWater, dueMist, dueFeed, dueCombo, dueRain } = useMemo(() => {
     const water = []
     const mist = []
     const feed = []
@@ -94,15 +96,27 @@ export default function Dashboard() {
       if (needsRainAnswer(plant, weather)) rain.push({ plant, cat, left: 0 })
     }
     const byUrgency = (a, b) => a.left - b.left
+    // Watering and feeding happen in the same trip to the sink, so a plant due
+    // for both is listed once, under Combo, instead of in Water and Feed.
+    // Logging one half drops it back into the tab for the other. Misting stays
+    // its own chore.
+    const feedLeft = new Map(feed.map(f => [f.plant.id, f.left]))
+    const combo = water
+      .filter(w => feedLeft.has(w.plant.id))
+      .map(w => ({ ...w, left: Math.min(w.left, feedLeft.get(w.plant.id)) }))
+    const inCombo = new Set(combo.map(c => c.plant.id))
     return {
-      dueWater: water.sort(byUrgency),
+      dueWater: water.filter(w => !inCombo.has(w.plant.id)).sort(byUrgency),
       dueMist: mist.sort(byUrgency),
-      dueFeed: feed.sort(byUrgency),
+      dueFeed: feed.filter(f => !inCombo.has(f.plant.id)).sort(byUrgency),
+      dueCombo: combo.sort(byUrgency),
       dueRain: rain,
     }
   }, [state.plants, lat, weather])
 
   const notifTabs = useMemo(() => [
+    { key: 'combo', label: 'Combo', empty: 'No plant needs water and food together.',
+      items: dueCombo, Icon: Droplets, Art: null, log: null, verb: 'combo' },
     { key: 'water', label: 'Water', empty: 'Nothing needs watering right now.',
       items: dueWater, Icon: Droplets, Art: WateringCan, log: markWatered, verb: 'watering' },
     { key: 'mist',  label: 'Mist',  empty: 'No plant is due for misting.',
@@ -111,9 +125,9 @@ export default function Dashboard() {
       items: dueFeed,  Icon: Sparkles, Art: null, log: markFertilized, verb: 'feeding' },
     { key: 'rain',  label: 'Rain',  empty: 'No rain to confirm — outdoor plants are up to date.',
       items: dueRain,  Icon: CloudRain, Art: null, log: null, verb: 'rain' },
-  ], [dueWater, dueMist, dueFeed, dueRain, markWatered, markMisted, markFertilized])
+  ], [dueCombo, dueWater, dueMist, dueFeed, dueRain, markWatered, markMisted, markFertilized])
 
-  const totalDue = dueWater.length + dueMist.length + dueFeed.length + dueRain.length
+  const totalDue = dueCombo.length + dueWater.length + dueMist.length + dueFeed.length + dueRain.length
   const activeTab = notifTabs.find(t => t.key === notifTab) || notifTabs[0]
 
   // open on whichever tab actually has something waiting
@@ -161,8 +175,8 @@ export default function Dashboard() {
   const freshDetail = detailPlant && state.plants.find(p => p.id === detailPlant.id)
 
   return (
-    <div className="main-content">
-      <div className="header">
+    <div className="main-content main-content-dashboard">
+      <div className="header header-sticky">
         <div className="avatar"><Avatar /></div>
         <div className="hello">
           <small>Welcome,</small>
@@ -213,9 +227,30 @@ export default function Dashboard() {
                     <div className="n-sub">
                       {activeTab.key === 'rain'
                         ? `Did it get wet? ${weather ? `${weather.yesterdayRainMm.toFixed(1)} mm fell` : ''}`
-                        : left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'}
+                        : activeTab.key === 'combo' ? `Water + feed · ${left < 0 ? `${-left}d overdue` : 'today'}`
+                        : dueLabel(left)}
                     </div>
                   </div>
+                  {activeTab.key === 'combo' && (
+                    <>
+                      <button
+                        className="n-log"
+                        aria-label={`Log watering for ${plant.nickname || cat?.name}`}
+                        title="Log watering"
+                        onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
+                      >
+                        <WateringCan />
+                      </button>
+                      <button
+                        className="n-log"
+                        aria-label={`Log feeding for ${plant.nickname || cat?.name}`}
+                        title="Log feeding"
+                        onClick={e => { e.stopPropagation(); markFertilized(plant.id) }}
+                      >
+                        <Sparkles size={18} />
+                      </button>
+                    </>
+                  )}
                   {activeTab.log && (
                     <button
                       className="n-log"

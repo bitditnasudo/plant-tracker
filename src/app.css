@@ -592,3 +592,34 @@
 @media (min-width: 1100px) {
   .catalog-grid { grid-template-columns: repeat(6, 1fr); }
 }
+
+/* ── Dashboard: pinned header ────────────────────────────────────────────── */
+/* The kit's .main-content sets overflow-y:auto, which makes it the sticky
+   container — but it never actually scrolls (the window does), so a sticky
+   child would ride away with the page. `clip` still stops sideways overflow
+   without creating a scroll container. */
+.main-content-dashboard { overflow: visible; overflow-x: clip; }
+
+/* The header bleeds over .main-content's padding so the page scrolls under a
+   full-width band, and it re-owns the status-bar inset it covers. */
+.header-sticky {
+  --hdr-pad-x: var(--sp-4);
+  --hdr-pad-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
+  position: sticky; top: 0; z-index: 55;
+  margin: calc(-1 * var(--hdr-pad-top)) calc(-1 * var(--hdr-pad-x)) var(--sp-2);
+  padding: calc(var(--hdr-pad-top) + var(--sp-2)) calc(var(--hdr-pad-x) + 2px) var(--sp-3);
+  /* Solid, not frosted: a backdrop-filter here becomes the backdrop root for
+     the notification .popover inside it, and the popover's own blur then has
+     nothing to blur — it turns see-through over the cards. */
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+@media (min-width: 700px) {
+  .header-sticky {
+    --hdr-pad-x: var(--sp-6);
+    --hdr-pad-top: calc(var(--sp-6) + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* Combo rows carry two log buttons — one per chore */
+.notif-item-combo { background: var(--info-wash); border-color: var(--brand-line); color: var(--info-ink); }
