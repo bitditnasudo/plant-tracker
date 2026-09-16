@@ -224,32 +224,64 @@
 /* The shell is the kit's .popover-wrap / .popover — same tail, same dismiss
    behaviour. Everything below is this app's content and stays here. */
 
-.notif-tabs {
-  display: flex; gap: 3px; margin-bottom: var(--sp-3);
-  background: var(--brand-wash); border-radius: var(--radius-xs); padding: 3px;
+/* This theme's --surface is glass (82% white). The popover now always opens
+   over the dark weather card, which the glass let through as a muddy grey —
+   so the glass is flattened onto --bg-2, the same colour a card reads as on the
+   page, and the tail gets the same fill. */
+.popover-notifs,
+.popover-notifs::before {
+  background: linear-gradient(var(--surface), var(--surface)), var(--bg-2);
 }
+.popover-notifs { width: min(360px, calc(100vw - 24px)); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
+
+.notif-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 var(--sp-1) var(--sp-3);
+}
+.notif-head b    { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--brand-deep); }
+.notif-head span { font-size: var(--fs-sm); color: var(--muted); font-weight: 600; }
+
+/* Only non-empty chores get a tab, so there are usually two or three and each
+   has room; overflow scrolls sideways rather than squeezing the labels. */
+.notif-tabs {
+  display: flex; gap: var(--sp-1); margin-bottom: var(--sp-3);
+  background: var(--brand-wash); border-radius: var(--radius-sm); padding: var(--sp-1);
+  overflow-x: auto; scrollbar-width: none;
+}
+.notif-tabs::-webkit-scrollbar { display: none; }
 .notif-tabs button {
-  flex: 1; border: none; background: none; border-radius: 8px;
-  padding: 7px 2px; min-height: var(--tap); cursor: pointer;
-  font-size: var(--fs-xs); font-weight: 800; color: var(--brand);
-  display: flex; align-items: center; justify-content: center; gap: var(--sp-1);
+  flex: 1 0 auto; border: none; background: none; border-radius: var(--radius-xs);
+  padding: 0 var(--sp-2); min-height: 40px; cursor: pointer;
+  font-size: var(--fs-sm); font-weight: 700; color: var(--brand-deep);
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  white-space: nowrap;
 }
 .notif-tabs button.is-active { background: var(--brand-deep); color: var(--on-brand); }
-/* was 9.5px — under the 11px floor, and it is a live count, not decoration */
 .notif-tabs .cnt {
-  font-size: var(--fs-xs); line-height: 1.5; min-width: 17px;
-  border-radius: var(--radius-pill);
-  background: rgb(var(--brand-rgb) / .16); padding: 0 var(--sp-1);
+  font-size: var(--fs-xs); font-weight: 800; line-height: 18px; min-width: 18px;
+  border-radius: var(--radius-pill); text-align: center;
+  background: rgb(var(--brand-rgb) / .22); padding: 0 5px;
 }
 .notif-tabs button.is-active .cnt { background: rgb(255 255 255 / .28); }
+/* one chore due: a label, not a one-button tab strip */
+.notif-single {
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--brand); padding: 0 var(--sp-1) var(--sp-2);
+}
 
 .notif-item {
-  display: flex; align-items: center; gap: 10px;
-  border-radius: var(--radius-xs); padding: 9px 10px; margin-bottom: 6px;
+  display: flex; align-items: center; gap: var(--sp-2);
+  border-radius: var(--radius-sm); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
   cursor: pointer; border: 1px solid transparent;
 }
-.notif-item .n-name { font-weight: 700; font-size: var(--fs-md); line-height: 1.25; }
+.notif-item:last-child { margin-bottom: 0; }
+.notif-item .n-name {
+  font-weight: 700; font-size: var(--fs-md); line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .notif-item .n-sub  { font-size: var(--fs-xs); color: var(--muted); }
+.notif-item .grow { min-width: 0; }
 .notif-item svg { flex-shrink: 0; }
 .notif-item:active { transform: scale(.985); }
 
@@ -274,8 +306,11 @@
 }
 .n-log:hover  { background: #fff; }
 .n-log:active { transform: scale(.88); }
-.n-log svg { width: 22px; height: 22px; }
-.notif-empty { text-align: center; padding: var(--sp-3) 6px; color: var(--muted); font-size: var(--fs-sm); }
+.n-log svg { width: 28px; height: 28px; }
+/* the feed action has no 3-D drawing; a brand-tinted line icon, a size down */
+.n-log-feed { color: var(--brand); }
+.n-log-feed svg { width: 20px; height: 20px; }
+.notif-empty { text-align: center; padding: var(--sp-4) var(--sp-2); color: var(--muted); font-size: var(--fs-sm); }
 
 /* ── Weather card ────────────────────────────────────────────────────────── */
 /* NOT the kit's .stat: .wx-stat is an inline metric on a dark gradient, while
@@ -593,33 +628,35 @@
   .catalog-grid { grid-template-columns: repeat(6, 1fr); }
 }
 
-/* ── Dashboard: pinned header ────────────────────────────────────────────── */
+/* ── Dashboard: pinned top block ────────────────────────────────────────── */
 /* The kit's .main-content sets overflow-y:auto, which makes it the sticky
    container — but it never actually scrolls (the window does), so a sticky
    child would ride away with the page. `clip` still stops sideways overflow
    without creating a scroll container. */
 .main-content-dashboard { overflow: visible; overflow-x: clip; }
 
-/* The header bleeds over .main-content's padding so the page scrolls under a
-   full-width band, and it re-owns the status-bar inset it covers. */
-.header-sticky {
-  --hdr-pad-x: var(--sp-4);
-  --hdr-pad-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
+/* Header, weather, search and the "My Plants" row stay put; only the plant
+   cards scroll. The block bleeds over .main-content's padding so the cards
+   pass under a full-width band, and re-owns the status-bar inset it covers. */
+.dash-top {
+  --top-pad-x: var(--sp-4);
+  --top-pad-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
   position: sticky; top: 0; z-index: 55;
-  margin: calc(-1 * var(--hdr-pad-top)) calc(-1 * var(--hdr-pad-x)) var(--sp-2);
-  padding: calc(var(--hdr-pad-top) + var(--sp-2)) calc(var(--hdr-pad-x) + 2px) var(--sp-3);
+  margin: calc(-1 * var(--top-pad-top)) calc(-1 * var(--top-pad-x)) var(--sp-3);
+  padding: var(--top-pad-top) var(--top-pad-x) 0;
   /* Solid, not frosted: a backdrop-filter here becomes the backdrop root for
      the notification .popover inside it, and the popover's own blur then has
      nothing to blur — it turns see-through over the cards. */
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
+.dash-top .section-head { margin: var(--sp-4) 2px 0; padding-bottom: var(--sp-3); }
 @media (min-width: 700px) {
-  .header-sticky {
-    --hdr-pad-x: var(--sp-6);
-    --hdr-pad-top: calc(var(--sp-6) + env(safe-area-inset-top, 0px));
+  .dash-top {
+    --top-pad-x: var(--sp-6);
+    --top-pad-top: calc(var(--sp-6) + env(safe-area-inset-top, 0px));
   }
 }
 
 /* Combo rows carry two log buttons — one per chore */
-.notif-item-combo { background: var(--info-wash); border-color: var(--brand-line); color: var(--info-ink); }
+.notif-item-combo { background: var(--info-wash); border-color: var(--info-line); color: var(--info-ink); }

@@ -115,25 +115,23 @@ export default function Dashboard() {
   }, [state.plants, lat, weather])
 
   const notifTabs = useMemo(() => [
-    { key: 'combo', label: 'Combo', empty: 'No plant needs water and food together.',
-      items: dueCombo, Icon: Droplets, Art: null, log: null, verb: 'combo' },
-    { key: 'water', label: 'Water', empty: 'Nothing needs watering right now.',
-      items: dueWater, Icon: Droplets, Art: WateringCan, log: markWatered, verb: 'watering' },
-    { key: 'mist',  label: 'Mist',  empty: 'No plant is due for misting.',
-      items: dueMist,  Icon: Droplets, Art: SprayBottle, log: markMisted, verb: 'misting' },
-    { key: 'feed',  label: 'Feed',  empty: 'No fertilizing due.',
-      items: dueFeed,  Icon: Sparkles, Art: null, log: markFertilized, verb: 'feeding' },
-    { key: 'rain',  label: 'Rain',  empty: 'No rain to confirm — outdoor plants are up to date.',
-      items: dueRain,  Icon: CloudRain, Art: null, log: null, verb: 'rain' },
+    { key: 'combo', label: 'Combo', items: dueCombo, Art: null,        log: null,           verb: 'combo' },
+    { key: 'water', label: 'Water', items: dueWater, Art: WateringCan, log: markWatered,    verb: 'watering' },
+    { key: 'mist',  label: 'Mist',  items: dueMist,  Art: SprayBottle, log: markMisted,     verb: 'misting' },
+    { key: 'feed',  label: 'Feed',  items: dueFeed,  Art: null,        log: markFertilized, verb: 'feeding' },
+    { key: 'rain',  label: 'Rain',  items: dueRain,  Art: null,        log: null,           verb: 'rain' },
   ], [dueCombo, dueWater, dueMist, dueFeed, dueRain, markWatered, markMisted, markFertilized])
 
   const totalDue = dueCombo.length + dueWater.length + dueMist.length + dueFeed.length + dueRain.length
-  const activeTab = notifTabs.find(t => t.key === notifTab) || notifTabs[0]
+  // Only chores with something waiting get a tab — five fixed tabs made the
+  // strip too tight on a phone. If the open tab empties (its last plant was
+  // just logged) the next non-empty one takes over.
+  const liveTabs = notifTabs.filter(t => t.items.length > 0)
+  const activeTab = liveTabs.find(t => t.key === notifTab) || liveTabs[0]
 
-  // open on whichever tab actually has something waiting
   const openNotifs = () => {
     setShowNotifs(v => {
-      if (!v) setNotifTab((notifTabs.find(t => t.items.length > 0) || notifTabs[0]).key)
+      if (!v && liveTabs[0]) setNotifTab(liveTabs[0].key)
       return !v
     })
   }
@@ -176,7 +174,9 @@ export default function Dashboard() {
 
   return (
     <div className="main-content main-content-dashboard">
-      <div className="header header-sticky">
+      {/* everything above the plant list stays pinned; only the cards scroll */}
+      <div className="dash-top">
+      <div className="header">
         <div className="avatar"><Avatar /></div>
         <div className="hello">
           <small>Welcome,</small>
@@ -193,76 +193,85 @@ export default function Dashboard() {
           </button>
 
           {showNotifs && (
-            <div className="popover" role="dialog" aria-label="Today's tasks">
-              <div className="notif-tabs" role="tablist">
-                {notifTabs.map(t => (
-                  <button
-                    key={t.key} role="tab" aria-selected={t.key === activeTab.key}
-                    className={t.key === activeTab.key ? 'is-active' : ''}
-                    onClick={() => setNotifTab(t.key)}
-                  >
-                    {t.label}
-                    {t.items.length > 0 && <span className="cnt">{t.items.length}</span>}
-                  </button>
-                ))}
+            <div className="popover popover-notifs" role="dialog" aria-label="Today's tasks">
+              <div className="notif-head">
+                <b>Today</b>
+                <span>{totalDue === 0 ? 'All caught up' : `${totalDue} task${totalDue === 1 ? '' : 's'}`}</span>
               </div>
 
-              {activeTab.items.length === 0 ? (
-                <div className="notif-empty">
-                  {totalDue === 0 ? 'Nothing due today — every plant is happy. 🌿' : activeTab.empty}
-                </div>
-              ) : activeTab.items.map(({ plant, cat, left }) => (
-                <div
-                  key={plant.id} className={`notif-item notif-item-${activeTab.key}`}
-                  onClick={() => {
-                    setShowNotifs(false)
-                    // rain rows ask the same question as the red bubble on the card
-                    if (activeTab.key === 'rain') setRainPlant(plant)
-                    else setDetailPlant(plant)
-                  }}
-                >
-                  <activeTab.Icon size={17} />
-                  <div className="grow">
-                    <div className="n-name">{plant.nickname || cat?.name}</div>
-                    <div className="n-sub">
-                      {activeTab.key === 'rain'
-                        ? `Did it get wet? ${weather ? `${weather.yesterdayRainMm.toFixed(1)} mm fell` : ''}`
-                        : activeTab.key === 'combo' ? `Water + feed · ${left < 0 ? `${-left}d overdue` : 'today'}`
-                        : dueLabel(left)}
+              {!activeTab ? (
+                <div className="notif-empty">Nothing due today — every plant is happy. 🌿</div>
+              ) : (
+                <>
+                  {liveTabs.length > 1 && (
+                    <div className="notif-tabs" role="tablist">
+                      {liveTabs.map(t => (
+                        <button
+                          key={t.key} role="tab" aria-selected={t.key === activeTab.key}
+                          className={t.key === activeTab.key ? 'is-active' : ''}
+                          onClick={() => setNotifTab(t.key)}
+                        >
+                          {t.label}
+                          <span className="cnt">{t.items.length}</span>
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                  {activeTab.key === 'combo' && (
-                    <>
-                      <button
-                        className="n-log"
-                        aria-label={`Log watering for ${plant.nickname || cat?.name}`}
-                        title="Log watering"
-                        onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
-                      >
-                        <WateringCan />
-                      </button>
-                      <button
-                        className="n-log"
-                        aria-label={`Log feeding for ${plant.nickname || cat?.name}`}
-                        title="Log feeding"
-                        onClick={e => { e.stopPropagation(); markFertilized(plant.id) }}
-                      >
-                        <Sparkles size={18} />
-                      </button>
-                    </>
                   )}
-                  {activeTab.log && (
-                    <button
-                      className="n-log"
-                      aria-label={`Log ${activeTab.verb} for ${plant.nickname || cat?.name}`}
-                      title={`Log ${activeTab.verb}`}
-                      onClick={e => { e.stopPropagation(); activeTab.log(plant.id) }}
+                  {liveTabs.length === 1 && <div className="notif-single">{activeTab.label}</div>}
+
+                  {activeTab.items.map(({ plant, cat, left }) => (
+                    <div
+                      key={plant.id} className={`notif-item notif-item-${activeTab.key}`}
+                      onClick={() => {
+                        setShowNotifs(false)
+                        // rain rows ask the same question as the red bubble on the card
+                        if (activeTab.key === 'rain') setRainPlant(plant)
+                        else setDetailPlant(plant)
+                      }}
                     >
-                      {activeTab.Art ? <activeTab.Art /> : <Sparkles size={18} />}
-                    </button>
-                  )}
-                </div>
-              ))}
+                      <div className="grow">
+                        <div className="n-name">{plant.nickname || cat?.name}</div>
+                        <div className="n-sub">
+                          {activeTab.key === 'rain'
+                            ? `Did it get wet? ${weather ? `${weather.yesterdayRainMm.toFixed(1)} mm fell` : ''}`
+                            : activeTab.key === 'combo' ? `Water + feed · ${left < 0 ? `${-left}d overdue` : 'today'}`
+                            : dueLabel(left)}
+                        </div>
+                      </div>
+                      {activeTab.key === 'combo' && (
+                        <>
+                          <button
+                            className="n-log"
+                            aria-label={`Log watering for ${plant.nickname || cat?.name}`}
+                            title="Log watering"
+                            onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
+                          >
+                            <WateringCan />
+                          </button>
+                          <button
+                            className="n-log n-log-feed"
+                            aria-label={`Log feeding for ${plant.nickname || cat?.name}`}
+                            title="Log feeding"
+                            onClick={e => { e.stopPropagation(); markFertilized(plant.id) }}
+                          >
+                            <Sparkles />
+                          </button>
+                        </>
+                      )}
+                      {activeTab.log && (
+                        <button
+                          className={`n-log${activeTab.Art ? '' : ' n-log-feed'}`}
+                          aria-label={`Log ${activeTab.verb} for ${plant.nickname || cat?.name}`}
+                          title={`Log ${activeTab.verb}`}
+                          onClick={e => { e.stopPropagation(); activeTab.log(plant.id) }}
+                        >
+                          {activeTab.Art ? <activeTab.Art /> : <Sparkles />}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -292,6 +301,7 @@ export default function Dashboard() {
             {sortDesc ? 'Z–A' : 'A–Z'}
           </button>
         </div>
+      </div>
       </div>
 
       {plants.length === 0 ? (
