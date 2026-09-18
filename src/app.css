@@ -310,6 +310,10 @@
 /* the feed action has no 3-D drawing; a brand-tinted line icon, a size down */
 .n-log-feed { color: var(--brand); }
 .n-log-feed svg { width: 20px; height: 20px; }
+/* a combo half already logged: ticked and inert until the other half is done */
+.n-log.is-done { color: var(--brand); opacity: .6; cursor: default; }
+.n-log.is-done:active { transform: none; }
+.n-log.is-done svg { width: 20px; height: 20px; }
 .notif-empty { text-align: center; padding: var(--sp-4) var(--sp-2); color: var(--muted); font-size: var(--fs-sm); }
 
 /* ── Weather card ────────────────────────────────────────────────────────── */

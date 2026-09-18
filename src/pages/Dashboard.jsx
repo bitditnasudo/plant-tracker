@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles, ArrowDownAZ, ArrowDownZA } from 'lucide-react'
+import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles, Check, ArrowDownAZ, ArrowDownZA } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, RAIN_ASK_MM } from '../lib/schedule.js'
 import { describeWeatherCode } from '../lib/weather.js'
@@ -75,6 +75,9 @@ export default function Dashboard() {
   const [showNotifs, setShowNotifs] = useState(false)
   const sortDesc = state.settings.plantSort === 'za'
   const [notifTab, setNotifTab] = useState('water')
+  // Combo plants that have had one half logged. They stay in Combo until the
+  // other half is done too, instead of hopping to the Water or Feed tab.
+  const [comboPins, setComboPins] = useState(() => new Set())
   const bellRef = useRef(null)
   const lat = state.settings.location?.lat
 
@@ -98,12 +101,24 @@ export default function Dashboard() {
     const byUrgency = (a, b) => a.left - b.left
     // Watering and feeding happen in the same trip to the sink, so a plant due
     // for both is listed once, under Combo, instead of in Water and Feed.
-    // Logging one half drops it back into the tab for the other. Misting stays
-    // its own chore.
-    const feedLeft = new Map(feed.map(f => [f.plant.id, f.left]))
-    const combo = water
-      .filter(w => feedLeft.has(w.plant.id))
-      .map(w => ({ ...w, left: Math.min(w.left, feedLeft.get(w.plant.id)) }))
+    // Logging one half keeps the row in Combo (pinned) with that half ticked;
+    // it leaves only once both are done. Misting stays its own chore.
+    const waterLeft = new Map(water.map(w => [w.plant.id, w]))
+    const feedLeft = new Map(feed.map(f => [f.plant.id, f]))
+    const combo = []
+    for (const plant of state.plants) {
+      const w = waterLeft.get(plant.id)
+      const f = feedLeft.get(plant.id)
+      const both = w && f
+      const pinned = comboPins.has(plant.id) && (w || f)
+      if (!both && !pinned) continue
+      const cat = (w || f).cat
+      combo.push({
+        plant, cat,
+        left: Math.min(w?.left ?? 0, f?.left ?? 0),
+        waterDone: !w, feedDone: !f,
+      })
+    }
     const inCombo = new Set(combo.map(c => c.plant.id))
     return {
       dueWater: water.filter(w => !inCombo.has(w.plant.id)).sort(byUrgency),
@@ -112,7 +127,7 @@ export default function Dashboard() {
       dueCombo: combo.sort(byUrgency),
       dueRain: rain,
     }
-  }, [state.plants, lat, weather])
+  }, [state.plants, lat, weather, comboPins])
 
   const notifTabs = useMemo(() => [
     { key: 'combo', label: 'Combo', items: dueCombo, Art: null,        log: null,           verb: 'combo' },
@@ -121,6 +136,18 @@ export default function Dashboard() {
     { key: 'feed',  label: 'Feed',  items: dueFeed,  Art: null,        log: markFertilized, verb: 'feeding' },
     { key: 'rain',  label: 'Rain',  items: dueRain,  Art: null,        log: null,           verb: 'rain' },
   ], [dueCombo, dueWater, dueMist, dueFeed, dueRain, markWatered, markMisted, markFertilized])
+
+  // once both halves are logged the row drops out of Combo — forget its pin so
+  // a later water-only (or feed-only) day lists it under the right tab
+  useEffect(() => {
+    if (!comboPins.size) return
+    const live = new Set(dueCombo.map(c => c.plant.id))
+    if ([...comboPins].some(id => !live.has(id))) {
+      setComboPins(prev => new Set([...prev].filter(id => live.has(id))))
+    }
+  }, [dueCombo, comboPins])
+
+  const pinCombo = id => setComboPins(prev => prev.has(id) ? prev : new Set(prev).add(id))
 
   const totalDue = dueCombo.length + dueWater.length + dueMist.length + dueFeed.length + dueRain.length
   // Only chores with something waiting get a tab — five fixed tabs made the
@@ -219,7 +246,7 @@ export default function Dashboard() {
                   )}
                   {liveTabs.length === 1 && <div className="notif-single">{activeTab.label}</div>}
 
-                  {activeTab.items.map(({ plant, cat, left }) => (
+                  {activeTab.items.map(({ plant, cat, left, waterDone, feedDone }) => (
                     <div
                       key={plant.id} className={`notif-item notif-item-${activeTab.key}`}
                       onClick={() => {
@@ -234,27 +261,30 @@ export default function Dashboard() {
                         <div className="n-sub">
                           {activeTab.key === 'rain'
                             ? `Did it get wet? ${weather ? `${weather.yesterdayRainMm.toFixed(1)} mm fell` : ''}`
-                            : activeTab.key === 'combo' ? `Water + feed · ${left < 0 ? `${-left}d overdue` : 'today'}`
+                            : activeTab.key === 'combo'
+                              ? `${waterDone ? 'Watered · feed left' : feedDone ? 'Fed · water left' : 'Water + feed'} · ${left < 0 ? `${-left}d overdue` : 'today'}`
                             : dueLabel(left)}
                         </div>
                       </div>
                       {activeTab.key === 'combo' && (
                         <>
                           <button
-                            className="n-log"
+                            className={`n-log${waterDone ? ' is-done' : ''}`}
                             aria-label={`Log watering for ${plant.nickname || cat?.name}`}
-                            title="Log watering"
-                            onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
+                            title={waterDone ? 'Watered' : 'Log watering'}
+                            disabled={waterDone}
+                            onClick={e => { e.stopPropagation(); pinCombo(plant.id); markWatered(plant.id) }}
                           >
-                            <WateringCan />
+                            {waterDone ? <Check /> : <WateringCan />}
                           </button>
                           <button
-                            className="n-log n-log-feed"
+                            className={`n-log n-log-feed${feedDone ? ' is-done' : ''}`}
                             aria-label={`Log feeding for ${plant.nickname || cat?.name}`}
-                            title="Log feeding"
-                            onClick={e => { e.stopPropagation(); markFertilized(plant.id) }}
+                            title={feedDone ? 'Fed' : 'Log feeding'}
+                            disabled={feedDone}
+                            onClick={e => { e.stopPropagation(); pinCombo(plant.id); markFertilized(plant.id) }}
                           >
-                            <Sparkles />
+                            {feedDone ? <Check /> : <Sparkles />}
                           </button>
                         </>
                       )}
