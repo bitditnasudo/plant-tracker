@@ -469,7 +469,9 @@ button, input, select, textarea { font-family: inherit; }
   animation: navPillIn var(--dur-slow) var(--ease-pop);
 }
 .nav-pill span { font-size: var(--fs-xs); font-weight: 700; color: var(--on-brand); line-height: 1.1; }
-.nav-pill svg { color: var(--on-brand); }
+/* Beats .nav-item:hover svg, which would paint the icon brand on brand-deep —
+   and iOS leaves :hover on the last-tapped tab, so that was the resting state. */
+.nav-pill svg, .nav-item:hover .nav-pill svg { color: var(--on-brand); }
 @keyframes navPillIn {
   from { transform: scale(.8); opacity: 0; }
   to   { transform: scale(1);  opacity: 1; }
@@ -496,6 +498,73 @@ button, input, select, textarea { font-family: inherit; }
 .fab-label { display: none; } /* sidebar only */
 
 .nav-brand { display: none; } /* sidebar only */
+
+/* ── Liquid glass (phone bar only) ────────────────────────────────────────
+   Frost + rim + sheen, the portable half of Liquid Glass. The refracting half
+   (an SVG displacement map in backdrop-filter) is Chromium-only: WebKit parses
+   backdrop-filter:url(#f) and renders nothing, @supports can't detect that,
+   and every iOS browser is WebKit — so it's deliberately not here.
+
+   Contrast: at .6 white the glass can sit over anything that scrolls under it,
+   down to a --brand-deep button. Measured against that worst case, --muted
+   falls to 2.2:1; --text holds 5.1:1. So inactive tabs use --text here.
+   Re-measure if --glass-tint drops.
+
+   The lens is the active-tab indicator (App.jsx useNavLens). It lives beside
+   the tabs, not inside them, and is solid — a blurred child of a blurred bar
+   has nothing to blur (see .dash-top in app.css). */
+@media (max-width: 699px) {
+  .bottom-nav {
+    --glass-tint: rgba(255,255,255,.6);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,0) 55%),
+      var(--glass-tint);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+            backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid rgba(255,255,255,.55);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.8),        /* top rim catching light */
+      inset 0 -1px 0 rgb(var(--brand-rgb) / .06), /* bottom rim in shade */
+      0 10px 30px rgb(var(--brand-rgb) / .16),
+      0 1px 3px rgb(var(--brand-rgb) / .08);
+  }
+  .bottom-nav .nav-item > .nav-label,
+  .bottom-nav .nav-item > svg { color: var(--text); }
+
+  .nav-item { position: relative; z-index: 1; }
+  .fab      { position: relative; z-index: 1; }
+
+  /* The lens paints the pill; the pill keeps its box so the lens can measure
+     it, and its content fades in rather than popping, since the lens now
+     carries the arrival. */
+  .nav-pill { background: transparent; animation: navLabelIn var(--dur-mid) var(--ease-out); }
+
+  .nav-lens {
+    position: absolute; z-index: 0;
+    border-radius: var(--radius-pill);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 60%),
+      var(--brand-deep);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 4px 12px rgb(var(--brand-rgb) / .28);
+    pointer-events: none;
+    transition:
+      left  .42s var(--ease-pop) var(--lag-l, 0s),
+      right .42s var(--ease-pop) var(--lag-r, 0s),
+      top   .42s var(--ease-pop),
+      height .42s var(--ease-pop);
+  }
+}
+@media (min-width: 700px) {
+  .nav-lens { display: none !important; }
+}
+@keyframes navLabelIn {
+  from { opacity: 0; transform: scale(.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-lens { transition: none; }
+  .nav-pill { animation: none; }
+}
 
 /* ── Bottom bar capacity ──────────────────────────────────────────────────
    The bar has a fixed width and its contents don't shrink, so past a certain
