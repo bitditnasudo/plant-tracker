@@ -107,7 +107,7 @@ export function AddPlantModal({ onClose }) {
       catalogId: selected.id,
       nickname: nickname.trim(),
       potMaterial, potColorId, bloomColor,
-      isOutside: selected.outdoor ? isOutside : false,
+      isOutside,
       // auto-derived at import; null falls back to the catalogue rule at read time
       windSensitivity: selected.windSensitivity || null,
       windSensitivityOverride: null,
@@ -275,15 +275,16 @@ export function AddPlantModal({ onClose }) {
                 {BLOOM_COLORS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
               </select>
             </div>
-            {selected.outdoor && (
-              <div className="field">
-                <label>Where does it live?</label>
-                <div className="seg">
-                  <button className={!isOutside ? 'is-active' : ''} onClick={() => setIsOutside(false)}>Inside</button>
-                  <button className={isOutside ? 'is-active' : ''} onClick={() => setIsOutside(true)}>Outside</button>
-                </div>
+            <div className="field">
+              <label>Where does it live?</label>
+              <div className="seg">
+                <button className={!isOutside ? 'is-active' : ''} onClick={() => setIsOutside(false)}>Inside</button>
+                <button className={isOutside ? 'is-active' : ''} onClick={() => setIsOutside(true)}>Outside</button>
               </div>
-            )}
+              {!selected.outdoor && isOutside && (
+                <p className="field-note">Usually kept indoors — rain and wind will still be tracked since it lives outside.</p>
+              )}
+            </div>
             <ZonePicker
               plantLight={selected.light}
               zones={state.plan.zones}
@@ -306,7 +307,7 @@ export function AddPlantModal({ onClose }) {
                   onChange={e => setWateredDate(e.target.value)}
                 />
               )}
-              {selected.outdoor && (
+              {isOutside && (
                 <p className="field-note">
                   If it rained since then and this plant lives outside, the dashboard will ask whether it got wet and adjust the schedule.
                 </p>

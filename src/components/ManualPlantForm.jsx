@@ -200,7 +200,7 @@ export function ManualPlantForm({ onCancel, onCreate }) {
           <button className={outdoor ? 'is-active' : ''} onClick={() => { setOutdoor(true); mark('outdoor') }}>Can go outside</button>
         </div>
         <p className="field-note">
-          Only plants that can go outside get wind adjustment and rain confirmations.
+          A hint for the species. Whether rain and wind apply is set per plant with Inside / Outside.
         </p>
       </div>
 

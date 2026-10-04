@@ -238,11 +238,12 @@ export function daysLeftLabel(days) {
 }
 
 // Should the red rain bubble show for this plant?
-// Outdoor plant + measurable rain yesterday + not yet answered for that date.
+// Plant set to Outside + measurable rain yesterday + not yet answered for that date.
+// Where the plant actually sits is the user's call — the species' `outdoor` flag is
+// only a hint, so an "indoor" species parked on the balcony still gets asked.
 export function needsRainAnswer(plant, weather) {
   if (!weather || weather.yesterdayRainMm < RAIN_ASK_MM) return false
-  const cat = getCatalogPlant(plant.catalogId)
-  if (!cat || !cat.outdoor || !plant.isOutside) return false
+  if (!plant.isOutside) return false
   // watered on or after the rain day — the rain can't add anything
   if (plant.lastWatered && plant.lastWatered >= weather.yesterdayDate) return false
   return plant.rainAnsweredFor !== weather.yesterdayDate

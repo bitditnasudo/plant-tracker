@@ -224,15 +224,13 @@ export function PlantDetailModal({ plant, onClose }) {
           )
         })()}
 
-        {cat.outdoor && (
-          <div className="field">
-            <label>Where does it live? (outside plants can be watered by rain)</label>
-            <div className="seg">
-              <button className={!plant.isOutside ? 'is-active' : ''} onClick={() => updatePlant(plant.id, { isOutside: false })}>Inside</button>
-              <button className={plant.isOutside ? 'is-active' : ''} onClick={() => updatePlant(plant.id, { isOutside: true })}>Outside</button>
-            </div>
+        <div className="field">
+          <label>Where does it live? (outside plants can be watered by rain)</label>
+          <div className="seg">
+            <button className={!plant.isOutside ? 'is-active' : ''} onClick={() => updatePlant(plant.id, { isOutside: false })}>Inside</button>
+            <button className={plant.isOutside ? 'is-active' : ''} onClick={() => updatePlant(plant.id, { isOutside: true })}>Outside</button>
           </div>
-        )}
+        </div>
 
         {(() => {
           const a = resolveAppearance(plant, cat)
