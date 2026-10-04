@@ -2,7 +2,6 @@
 // Needs a Google AI Studio API key (https://aistudio.google.com/apikey) saved in Account.
 // Note: a Gemini Pro *subscription* does not include API access, but AI Studio
 // keys have a free tier that covers this use.
-import { idbSet } from './idb.js'
 
 // Newest image model first; falls back if the key's plan doesn't include it.
 const MODELS = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image']
@@ -49,8 +48,9 @@ export async function lookupPlantCare(apiKey, { name, latin }) {
   let lastError = null
   for (const model of TEXT_MODELS) {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      // key in a header, not the URL query, so it stays out of logs and history
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(body) },
     )
     if (!res.ok) {
       // 503 = the model is momentarily overloaded, which is common on preview
@@ -101,10 +101,10 @@ export function buildIconPrompt({ name, details, material, potColor, bloom }) {
 export async function generatePlantIcon(apiKey, promptFields) {
   let lastError = null
   for (const model of MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{ parts: [{ text: buildIconPrompt(promptFields) }] }],
         generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
@@ -145,8 +145,4 @@ function downscale(dataUrl, size) {
     img.onerror = reject
     img.src = dataUrl
   })
-}
-
-export async function saveGeneratedIcon(plantId, dataUrl) {
-  await idbSet(`icon:${plantId}`, dataUrl)
 }

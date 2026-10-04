@@ -38,19 +38,39 @@ export function clearToken() {
 
 export function isAuthenticated() { return !!getStoredToken() }
 
+// A random `state` travels to Google and back; the callback only accepts a
+// token whose state matches, so a crafted /auth/callback#access_token=… link
+// can't point the app at someone else's Drive. (localStorage, like the token
+// itself: an installed iOS PWA can lose sessionStorage across the redirect.)
+const STATE_KEY = 'pt_g_state'
+
 export function signIn() {
+  const state = crypto.randomUUID()
+  localStorage.setItem(STATE_KEY, state)
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: window.location.origin + '/auth/callback',
     response_type: 'token',
     scope: SCOPES,
     prompt: 'select_account',
+    state,
   })
   window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
 }
 
+// One-shot: true only for the state this tab sent.
+export function consumeAuthState(returned) {
+  const sent = localStorage.getItem(STATE_KEY)
+  localStorage.removeItem(STATE_KEY)
+  return !!sent && sent === returned
+}
+
 export class AuthExpiredError extends Error {
   constructor() { super('Google session expired'); this.name = 'AuthExpiredError' }
+}
+
+export class NotFoundError extends Error {
+  constructor() { super('Sync file not found'); this.name = 'NotFoundError' }
 }
 
 async function driveFetch(url, options = {}, raw = false) {
@@ -64,6 +84,7 @@ async function driveFetch(url, options = {}, raw = false) {
     clearToken()
     throw new AuthExpiredError()
   }
+  if (res.status === 404) throw new NotFoundError()
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error?.message || `Drive HTTP ${res.status}`)
@@ -100,6 +121,7 @@ async function uploadResumable(method, initUrl, metadata, jsonString) {
     body: JSON.stringify(metadata),
   })
   if (init.status === 401) { clearToken(); throw new AuthExpiredError() }
+  if (init.status === 404) throw new NotFoundError()
   if (!init.ok) throw new Error(`Drive upload init failed (${init.status})`)
   const location = init.headers.get('Location')
   if (!location) throw new Error('Drive did not return an upload session')
@@ -116,17 +138,18 @@ export async function createSyncFile(jsonString) {
   const folderId = await ensureFolder()
   const created = await uploadResumable(
     'POST',
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,version',
     { name: SYNC_FILE_NAME, parents: [folderId], mimeType: 'application/json' },
     jsonString,
   )
-  return created.id
+  return created // {id, version}
 }
 
+// returns {id, version}
 export async function updateSyncFile(fileId, jsonString) {
   return uploadResumable(
     'PATCH',
-    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable&fields=id`,
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable&fields=id,version`,
     {},
     jsonString,
   )
@@ -135,4 +158,51 @@ export async function updateSyncFile(fileId, jsonString) {
 export async function downloadSyncFile(fileId) {
   const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {}, true)
   return res.json()
+}
+
+// Cheap "did anything change?" probe. `version` is Drive's own counter, so the
+// check never depends on two devices' clocks agreeing.
+export async function getSyncFileInfo(fileId) {
+  return driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,version,trashed`)
+}
+
+/* ── Daily snapshots ──────────────────────────────────────────────────────
+ * Once a day the sync file is copied to plant-tracker-YYYY-MM-DD.json in the
+ * same folder; the newest SNAPSHOT_KEEP are kept and older ones go to the
+ * Drive trash (recoverable for 30 days), never deleted outright. */
+export const SNAPSHOT_KEEP = 14
+const SNAP_PREFIX = 'plant-tracker-20'
+
+export async function listSnapshots() {
+  const q = encodeURIComponent(`name contains '${SNAP_PREFIX}' and trashed=false`)
+  const data = await driveFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&pageSize=100`)
+  return (data.files || [])
+    .filter(f => /^plant-tracker-\d{4}-\d{2}-\d{2}\.json$/.test(f.name))
+    .sort((a, b) => b.name.localeCompare(a.name))
+}
+
+export async function snapshotIfDue(fileId, day) {
+  const existing = await listSnapshots()
+  if (!existing.some(f => f.name === `plant-tracker-${day}.json`)) {
+    const folderId = await ensureFolder()
+    await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}/copy?fields=id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `plant-tracker-${day}.json`, parents: [folderId] }),
+    })
+    existing.unshift({ name: `plant-tracker-${day}.json` })
+  }
+  for (const old of existing.slice(SNAPSHOT_KEEP)) {
+    if (!old.id) continue
+    await driveFetch(`https://www.googleapis.com/drive/v3/files/${old.id}?fields=id`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true }),
+    })
+  }
+}
+
+export async function downloadSnapshot(id) {
+  const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {}, true)
+  return res.text()
 }

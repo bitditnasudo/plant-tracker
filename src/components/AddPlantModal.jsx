@@ -8,16 +8,27 @@ import { PlantIcon } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
 import { POT_MATERIALS, POT_COLORS, BLOOM_COLORS, resolveAppearance } from '../lib/potOptions.js'
 import { ManualPlantForm } from './ManualPlantForm.jsx'
+import { Sheet } from './Sheet.jsx'
 
+// Nothing is pre-selected: a silent default ("watered today", "fed today",
+// "inside") is how a plant ends up quietly on the wrong schedule.
 const LAST_WATERED = [
   { label: 'Today', days: 0 },
   { label: 'Yesterday', days: 1 },
-  { label: '~A week', days: 5 },
-  { label: 'Other…', days: 'other' }, // opens a date picker
+  { label: '~5 days ago', days: 5 },
+  { label: 'Not sure', days: 'unsure' }, // → due now
+  { label: 'Other…', days: 'other' },    // opens a date picker
 ]
+const LAST_FED = [
+  { label: 'This week', days: 3 },
+  { label: '~2 weeks ago', days: 14 },
+  { label: 'A month+', days: 35 },
+  { label: 'Not sure', days: 'unsure' }, // → due now
+]
+const ago = days => formatISO(subDays(new Date(), days), { representation: 'date' })
 
 export function AddPlantModal({ onClose }) {
-  const { state, addPlant, addCustomCatalogEntry } = useStore()
+  const { state, addPlant, addCustomCatalogEntry, showToast } = useStore()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [selected, setSelected] = useState(null)
@@ -26,9 +37,10 @@ export function AddPlantModal({ onClose }) {
   const [potMaterial, setPotMaterial] = useState('terracotta')
   const [potColorId, setPotColorId] = useState('natural')
   const [bloomColor, setBloomColor] = useState('none')
-  const [isOutside, setIsOutside] = useState(false)
-  const [watered, setWatered] = useState(0)
+  const [isOutside, setIsOutside] = useState(null)   // must be chosen
+  const [watered, setWatered] = useState(null)       // must be chosen
   const [wateredDate, setWateredDate] = useState('') // used when watered === 'other'
+  const [fed, setFed] = useState(null)               // must be chosen
   const [zoneId, setZoneId] = useState(null)
 
   // online search
@@ -52,8 +64,17 @@ export function AddPlantModal({ onClose }) {
     setPotMaterial(a.material.id)
     setPotColorId(a.color.id)
     setBloomColor(a.bloom.id)
-    setIsOutside(false)
+    setIsOutside(null)
+    setWatered(null)
+    setFed(null)
     setZoneId(null)
+  }
+
+  // a room marked indoor/outdoor answers "where does it live" for you
+  const pickZone = id => {
+    setZoneId(id)
+    const z = id && state.plan.zones.find(zn => zn.id === id)
+    if (z && typeof z.outdoor === 'boolean') setIsOutside(z.outdoor)
   }
 
   const searchOnline = async () => {
@@ -84,14 +105,22 @@ export function AddPlantModal({ onClose }) {
     }
   }
 
+  const missing = [
+    isOutside === null && 'where it lives',
+    watered === null && 'when it was last watered',
+    fed === null && 'when it was last fed',
+    watered === 'other' && !wateredDate && 'the watering date',
+  ].filter(Boolean)
+
   const save = () => {
     if (selected.isCustom) {
       const { isCustom, estimated, ...entry } = selected
       addCustomCatalogEntry(entry)
     }
-    const lastWatered = watered === 'other'
-      ? wateredDate || null // null = "never" -> due immediately
-      : formatISO(subDays(new Date(), watered), { representation: 'date' })
+    const lastWatered = watered === 'other' ? wateredDate || null
+      : watered === 'unsure' ? null // null = due immediately
+      : ago(watered)
+    const lastFertilized = fed === 'unsure' ? null : ago(fed)
     // picking a room drops the plant inside that zone on the plan (nudge it later)
     let placement = { x: null, y: null, zoneId: null }
     const zone = zoneId && state.plan.zones.find(z => z.id === zoneId)
@@ -115,212 +144,236 @@ export function AddPlantModal({ onClose }) {
       ...placement,
       lastWatered,
       lastMisted: lastWatered,
-      lastFertilized: formatISO(new Date(), { representation: 'date' }),
+      lastFertilized,
       rainAnsweredFor: null, rainDelay: false,
     })
+    showToast({ text: `Added ${nickname.trim() || selected.name}${zone ? ` to ${zone.name}` : ''}` })
     onClose()
   }
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="sheet-handle" />
-
-        {manual ? (
+    <Sheet onClose={onClose} label="Add a plant">
+      {/* kept mounted while you look at the result, so Back returns to the
+          form with everything you typed */}
+      {manual && (
+        <div hidden={!!selected}>
           <ManualPlantForm
             onCancel={() => setManual(false)}
-            onCreate={entry => { setManual(false); pick(entry) }}
+            onCreate={entry => pick(entry)}
           />
-        ) : !selected ? (
-          <>
-            <h2>Add a plant</h2>
+        </div>
+      )}
+
+      {!manual && !selected && (
+        <>
+          <h2>Add a plant</h2>
+          <div className="catalog-head">
             <div className="search-bar search-bar-tight">
               <Search size={17} />
               <input
-                placeholder="Search the catalogue…" value={query}
+                placeholder="Search the catalogue…" value={query} aria-label="Search the catalogue"
                 onChange={e => { setQuery(e.target.value); setOnlineResults(null); setOnlineError(null) }}
               />
             </div>
-            <div className="chip-row">
+            <div className="chip-row chip-row-fade">
               {CATEGORIES.map(([id, label]) => (
                 <button key={id} className={`chip${category === id ? ' is-active' : ''}`} onClick={() => setCategory(id)}>{label}</button>
               ))}
             </div>
+          </div>
 
-            <div className="catalog-grid">
-              {results.map(cat => (
-                <div key={cat.id} className="catalog-item" onClick={() => pick(cat)}>
-                  <PlantIcon icon={cat.icon} />
-                  <div className="cname">{cat.name}</div>
-                  <div className="clatin">{cat.latin}</div>
-                </div>
-              ))}
-            </div>
-            {results.length === 0 && !onlineResults && (
-              <p className="muted center empty-hint">Nothing in the built-in catalogue matches “{query}”.</p>
-            )}
+          <div className="catalog-grid">
+            {results.map(cat => (
+              <button type="button" key={cat.id} className="catalog-item" onClick={() => pick(cat)}>
+                <PlantIcon icon={cat.icon} />
+                <div className="cname">{cat.name}</div>
+                <div className="clatin">{cat.latin}</div>
+              </button>
+            ))}
+          </div>
+          {results.length === 0 && !onlineResults && (
+            <p className="muted center empty-hint">Nothing in the built-in catalogue matches “{query}”.</p>
+          )}
 
-            {/* online search (Perenual) */}
-            {query.trim().length >= 3 && (
-              perenualKey ? (
-                <div className="online-search">
-                  <button className="btn btn-soft btn-block" onClick={searchOnline} disabled={onlineBusy}>
-                    {onlineBusy ? <Loader2 size={16} className="spin" /> : <Globe size={16} />}
-                    {onlineBusy ? 'Searching 10,000+ species…' : `Search online for “${query.trim()}”`}
-                  </button>
-                  {onlineResults?.length > 0 && (
-                    <div className="card online-results">
-                      {onlineResults.slice(0, 8).map(r => (
-                        <div key={r.perenualId} className="list-row list-row-tap" onClick={() => !importingId && importOnline(r)}>
-                          <div className="row-icon"><Globe size={16} /></div>
-                          <div className="grow">
-                            {r.name} {r.perenualId > FREE_TIER_MAX_ID && <span className="tag tag-warn">care data estimated</span>}
-                            <small className="latin">{r.latin}</small>
-                          </div>
-                          {importingId === r.perenualId ? <Loader2 size={16} className="spin" /> : <ChevronLeft size={16} className="chevron-next" />}
+          {/* online search (Perenual) */}
+          {query.trim().length >= 3 && (
+            perenualKey ? (
+              <div className="online-search">
+                <button className="btn btn-soft btn-block" onClick={searchOnline} disabled={onlineBusy}>
+                  {onlineBusy ? <Loader2 size={16} className="spin" /> : <Globe size={16} />}
+                  {onlineBusy ? 'Searching 10,000+ species…' : `Search online for “${query.trim()}”`}
+                </button>
+                {onlineResults?.length > 0 && (
+                  <div className="card online-results">
+                    {onlineResults.slice(0, 8).map(r => (
+                      <div key={r.perenualId} className="list-row list-row-tap" onClick={() => !importingId && importOnline(r)}>
+                        <div className="row-icon"><Globe size={16} /></div>
+                        <div className="grow">
+                          {r.name} {r.perenualId > FREE_TIER_MAX_ID && <span className="tag tag-warn">care data estimated</span>}
+                          <small className="latin">{r.latin}</small>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="muted center online-search">
-                  Can’t find it? Add a free <b>Perenual API key</b> in the Account tab to search 10,000+ more species online.
-                </p>
-              )
-            )}
-            {onlineError && <p className="center note-danger">{onlineError}</p>}
-
-            {/* last resort, and the only one that always works */}
-            <button
-              className={`btn btn-block ${results.length === 0 ? 'btn-primary' : 'btn-secondary'}`}
-              
-              onClick={() => setManual(true)}
-            >
-              <PencilLine size={16} />
-              {results.length === 0 ? `Add “${query.trim() || 'a plant'}” yourself` : 'Not listed? Add it yourself'}
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="chip sheet-back" onClick={() => setSelected(null)}>
-              <ChevronLeft size={14} /> Catalogue
-            </button>
-            <div className="sheet-ident">
-              <div className="plant-tile plant-tile-md"><PlantIcon icon={selected.icon} /></div>
-              <div>
-                <h2>{selected.name}</h2>
-                <div className="muted latin">{selected.latin}</div>
-                {selected.source === 'manual'
-                  ? <span className="tag tag-ok tag-stack">your own entry</span>
-                  : selected.isCustom && <span className="tag tag-info tag-stack">from online database</span>}
-              </div>
-            </div>
-
-            <div className="card fact-row">
-              <span><Droplets size={13} /> every {selected.waterSummer}d (summer) / {selected.waterWinter}d (winter)</span>
-              <span><Sun size={13} /> {LIGHT_LABELS[selected.light]}</span>
-              <span><Sparkles size={13} /> feed every {selected.fertilize}d</span>
-            </div>
-
-            {selected.estimated && (
-              <>
-                <p className="muted note-inline">
-                  This species’ care data needs a paid Perenual plan, so these are <b>estimates</b> — adjust them if you know better:
-                </p>
-                <div className="field-row">
-                  <div className="field">
-                    <label>Days between waterings (summer)</label>
-                    <input
-                      type="number" min="1" max="60" value={selected.waterSummer}
-                      onChange={e => {
-                        const v = Math.max(1, Math.min(60, +e.target.value || 7))
-                        setSelected(s => ({ ...s, waterSummer: v, waterWinter: Math.min(60, Math.round(v * 1.8)) }))
-                      }}
-                    />
+                        {importingId === r.perenualId ? <Loader2 size={16} className="spin" /> : <ChevronLeft size={16} className="chevron-next" />}
+                      </div>
+                    ))}
                   </div>
-                  <div className="field field-wide">
-                    <label>Ideal light</label>
-                    <div className="seg">
-                      {['direct', 'partial', 'shade'].map(l => (
-                        <button key={l} className={selected.light === l ? 'is-active' : ''} onClick={() => setSelected(s => ({ ...s, light: l }))}>{LIGHT_LABELS[l].split(' ')[0]}</button>
-                      ))}
-                    </div>
+                )}
+              </div>
+            ) : (
+              <p className="muted center online-search">
+                Can’t find it? Add a free <b>Perenual API key</b> in the Account tab to search 10,000+ more species online.
+              </p>
+            )
+          )}
+          {onlineError && <p className="center note-danger">{onlineError}</p>}
+
+          {/* last resort, and the only one that always works */}
+          <button
+            className={`btn btn-block ${results.length === 0 ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setManual(true)}
+          >
+            <PencilLine size={16} />
+            {results.length === 0 ? `Add “${query.trim() || 'a plant'}” yourself` : 'Not listed? Add it yourself'}
+          </button>
+        </>
+      )}
+
+      {selected && (
+        <>
+          <button className="chip sheet-back" onClick={() => setSelected(null)}>
+            <ChevronLeft size={14} /> {selected.source === 'manual' ? 'Edit details' : 'Catalogue'}
+          </button>
+          <div className="sheet-ident">
+            <div className="plant-tile plant-tile-md"><PlantIcon icon={selected.icon} /></div>
+            <div>
+              <h2>{selected.name}</h2>
+              <div className="muted latin">{selected.latin}</div>
+              {selected.source === 'manual'
+                ? <span className="tag tag-ok tag-stack">your own entry</span>
+                : selected.isCustom && <span className="tag tag-info tag-stack">from online database</span>}
+            </div>
+          </div>
+
+          <div className="card fact-row">
+            <span><Droplets size={13} /> every {selected.waterSummer}d (summer) / {selected.waterWinter}d (winter)</span>
+            <span><Sun size={13} /> {LIGHT_LABELS[selected.light]}</span>
+            <span><Sparkles size={13} /> feed every {selected.fertilize}d</span>
+          </div>
+
+          {selected.estimated && (
+            <>
+              <p className="muted note-inline">
+                This species’ care data needs a paid Perenual plan, so these are <b>estimates</b> — adjust them if you know better:
+              </p>
+              <div className="field-row">
+                <div className="field">
+                  <label>Days between waterings (summer)</label>
+                  <input
+                    type="number" min="1" max="60" value={selected.waterSummer}
+                    onChange={e => {
+                      const v = Math.max(1, Math.min(60, +e.target.value || 7))
+                      setSelected(s => ({ ...s, waterSummer: v, waterWinter: Math.min(60, Math.round(v * 1.8)) }))
+                    }}
+                  />
+                </div>
+                <div className="field field-wide">
+                  <label>Ideal light</label>
+                  <div className="seg">
+                    {['direct', 'partial', 'shade'].map(l => (
+                      <button key={l} className={selected.light === l ? 'is-active' : ''} onClick={() => setSelected(s => ({ ...s, light: l }))}>{LIGHT_LABELS[l].split(' ')[0]}</button>
+                    ))}
                   </div>
                 </div>
-              </>
-            )}
+              </div>
+            </>
+          )}
 
-            <div className="field">
-              <label>Nickname (optional)</label>
-              <input value={nickname} placeholder={selected.name} onChange={e => setNickname(e.target.value)} />
+          <div className="field">
+            <label>Nickname (optional)</label>
+            <input value={nickname} placeholder={selected.name} onChange={e => setNickname(e.target.value)} />
+          </div>
+
+          <ZonePicker
+            plantLight={selected.light}
+            zones={state.plan.zones}
+            value={zoneId}
+            onChange={pickZone}
+          />
+
+          <div className="field">
+            <label>Where does it live?</label>
+            <div className="seg" role="radiogroup" aria-label="Where does it live?">
+              <button role="radio" aria-checked={isOutside === false} className={isOutside === false ? 'is-active' : ''} onClick={() => setIsOutside(false)}>Inside</button>
+              <button role="radio" aria-checked={isOutside === true} className={isOutside === true ? 'is-active' : ''} onClick={() => setIsOutside(true)}>Outside</button>
             </div>
-            <div className="field-row">
-              <div className="field">
-                <label>Pot material</label>
-                <select value={potMaterial} onChange={e => setPotMaterial(e.target.value)}>
-                  {POT_MATERIALS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                </select>
-              </div>
-              <div className="field">
-                <label>Pot colour</label>
-                <select value={potColorId} onChange={e => setPotColorId(e.target.value)}>
-                  {POT_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                </select>
-              </div>
-            </div>
+            <p className="field-note">
+              {isOutside === true
+                ? `${selected.outdoor ? '' : 'Usually kept indoors — '}rain questions and wind adjustment will apply.`
+                : isOutside === false ? 'No rain questions or wind adjustment.'
+                : 'Balcony, terrace or garden counts as outside: those plants get rain questions and a wind-adjusted schedule.'}
+            </p>
+          </div>
+
+          <div className="field-row">
             <div className="field">
-              <label>Flower colour — used when generating the icon</label>
-              <select value={bloomColor} onChange={e => setBloomColor(e.target.value)}>
-                {BLOOM_COLORS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+              <label>Pot material</label>
+              <select value={potMaterial} onChange={e => setPotMaterial(e.target.value)}>
+                {POT_MATERIALS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
               </select>
             </div>
             <div className="field">
-              <label>Where does it live?</label>
-              <div className="seg">
-                <button className={!isOutside ? 'is-active' : ''} onClick={() => setIsOutside(false)}>Inside</button>
-                <button className={isOutside ? 'is-active' : ''} onClick={() => setIsOutside(true)}>Outside</button>
-              </div>
-              {!selected.outdoor && isOutside && (
-                <p className="field-note">Usually kept indoors — rain and wind will still be tracked since it lives outside.</p>
-              )}
+              <label>Pot colour</label>
+              <select value={potColorId} onChange={e => setPotColorId(e.target.value)}>
+                {POT_COLORS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
             </div>
-            <ZonePicker
-              plantLight={selected.light}
-              zones={state.plan.zones}
-              value={zoneId}
-              onChange={setZoneId}
-            />
+          </div>
+          <div className="field">
+            <label>Flower colour — used when generating the icon</label>
+            <select value={bloomColor} onChange={e => setBloomColor(e.target.value)}>
+              {BLOOM_COLORS.map(b => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
+          </div>
 
-            <div className="field">
-              <label>Last watered</label>
-              <div className="seg">
-                {LAST_WATERED.map(o => (
-                  <button key={o.label} className={watered === o.days ? 'is-active' : ''} onClick={() => setWatered(o.days)}>{o.label}</button>
-                ))}
-              </div>
-              {watered === 'other' && (
-                <input
-                  type="date" className="date-inline"
-                  max={formatISO(new Date(), { representation: 'date' })}
-                  value={wateredDate}
-                  onChange={e => setWateredDate(e.target.value)}
-                />
-              )}
-              {isOutside && (
-                <p className="field-note">
-                  If it rained since then and this plant lives outside, the dashboard will ask whether it got wet and adjust the schedule.
-                </p>
-              )}
+          <div className="field">
+            <label>Last watered</label>
+            <div className="seg seg-wrap">
+              {LAST_WATERED.map(o => (
+                <button key={o.label} className={watered === o.days ? 'is-active' : ''} onClick={() => setWatered(o.days)}>{o.label}</button>
+              ))}
             </div>
+            {watered === 'other' && (
+              <input
+                type="date" className="date-inline"
+                max={formatISO(new Date(), { representation: 'date' })}
+                value={wateredDate}
+                onChange={e => setWateredDate(e.target.value)}
+              />
+            )}
+            {isOutside && (
+              <p className="field-note">
+                If it rained since then, the dashboard will ask whether it got wet and adjust the schedule.
+              </p>
+            )}
+          </div>
 
-            <button className="btn btn-primary btn-block" onClick={save} disabled={watered === 'other' && !wateredDate}>Add plant</button>
-            <p className="field-note center">
-              You can place it on your floor plan from the Plan tab.
-            </p>
-          </>
-        )}
-      </div>
-    </div>
+          <div className="field">
+            <label>Last fed</label>
+            <div className="seg seg-wrap">
+              {LAST_FED.map(o => (
+                <button key={o.label} className={fed === o.days ? 'is-active' : ''} onClick={() => setFed(o.days)}>{o.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <button className="btn btn-primary btn-block" onClick={save} disabled={missing.length > 0}>Add plant</button>
+          <p className="field-note center">
+            {missing.length > 0
+              ? `Still to choose: ${missing.join(', ')}.`
+              : zoneId ? 'It will sit in that room on your floor plan — drag it to the exact spot later.'
+              : state.plan.zones.length ? 'You can place it on your floor plan from the Plan tab.' : ''}
+          </p>
+        </>
+      )}
+    </Sheet>
   )
 }

@@ -1,14 +1,36 @@
-// Watering reminders as Google Calendar events. Google delivers the actual
+// Care reminders as Google Calendar events. Google delivers the actual
 // notifications (native push on every signed-in device + email), so the web
-// app needs no backend. One event per plant on its next watering date,
+// app needs no backend. One event per plant per care kind — watering, and with
+// settings.calendarCare also misting and feeding — on its next due date,
 // tagged with extendedProperties so we can update/remove our own events only.
 import { addDays, formatISO } from 'date-fns'
 import { getStoredToken, clearToken, AuthExpiredError } from './googleDrive.js'
 import { getCatalogPlant } from './catalog.js'
-import { waterDaysLeft } from './schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft } from './schedule.js'
 
 const CAL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
-const REMINDER_HOUR = '09:00' // local time the reminder fires
+
+const KINDS = [
+  { kind: 'water', emoji: '💧', verb: 'Water', left: (p, lat) => waterDaysLeft(p, lat), always: true },
+  { kind: 'mist',  emoji: '💨', verb: 'Mist',  left: p => mistDaysLeft(p) },
+  { kind: 'feed',  emoji: '🌱', verb: 'Feed',  left: p => fertilizeDaysLeft(p) },
+]
+
+const pad = n => String(n).padStart(2, '0')
+
+// Due date at the reminder hour. An overdue reminder (or one due today whose
+// hour has passed) goes to the next whole hour instead, so it actually fires
+// rather than sitting silently in the past.
+export function reminderStart(daysLeft, hour, now = new Date()) {
+  const due = addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour), Math.max(0, daysLeft))
+  if (due > now) return due
+  const next = new Date(now)
+  next.setMinutes(0, 0, 0)
+  next.setHours(next.getHours() + 1)
+  return next
+}
+const localDateTime = d =>
+  `${formatISO(d, { representation: 'date' })}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`
 
 export class CalendarScopeError extends Error {
   constructor() {
@@ -44,54 +66,64 @@ async function calFetch(url, options = {}) {
   return res.json()
 }
 
-export async function syncCalendarReminders(plants, latitude) {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+const LIST_URL = `${CAL}?privateExtendedProperty=${encodeURIComponent('ptApp=plant-tracker')}&maxResults=2500&singleEvents=true`
 
-  // our previously created events, keyed by plant id
-  const listUrl = `${CAL}?privateExtendedProperty=${encodeURIComponent('ptApp=plant-tracker')}&maxResults=250&singleEvents=true`
-  const data = await calFetch(listUrl)
+export async function syncCalendarReminders(plants, settings = {}) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const hour = Number.isInteger(settings.reminderHour) ? settings.reminderHour : 9
+  const lat = settings.location?.lat
+
+  // our previously created events, keyed by plant id + kind (events made
+  // before mist/feed reminders existed carry no kind: they are watering)
+  const data = await calFetch(LIST_URL)
   const existing = new Map()
   for (const ev of data?.items || []) {
-    const pid = ev.extendedProperties?.private?.ptPlantId
-    if (pid) existing.set(pid, ev)
+    const pr = ev.extendedProperties?.private || {}
+    if (pr.ptPlantId) existing.set(`${pr.ptPlantId}:${pr.ptKind || 'water'}`, ev)
   }
 
   const seen = new Set()
   for (const p of plants) {
     const cat = getCatalogPlant(p.catalogId)
     if (!cat) continue
-    seen.add(p.id)
-    const left = waterDaysLeft(p, latitude)
-    const date = formatISO(addDays(new Date(), Math.max(0, left)), { representation: 'date' })
-    const body = {
-      summary: `💧 Water ${p.nickname || cat.name}`,
-      description: 'Plant Tracker watering reminder — open the app and tap the watering can when done.',
-      start: { dateTime: `${date}T${REMINDER_HOUR}:00`, timeZone: tz },
-      end: { dateTime: `${date}T${REMINDER_HOUR.slice(0, 3)}30:00`, timeZone: tz },
-      reminders: {
-        useDefault: false,
-        overrides: [{ method: 'popup', minutes: 0 }, { method: 'email', minutes: 0 }],
-      },
-      extendedProperties: { private: { ptApp: 'plant-tracker', ptPlantId: p.id } },
-    }
-    const ev = existing.get(p.id)
-    if (!ev) {
-      await calFetch(CAL, { method: 'POST', body: JSON.stringify(body) })
-    } else if (!(ev.start?.dateTime || '').startsWith(date)) {
-      await calFetch(`${CAL}/${ev.id}`, { method: 'PATCH', body: JSON.stringify(body) })
+    const name = p.nickname || cat.name
+    for (const k of KINDS) {
+      if (!k.always && !settings.calendarCare) continue
+      const left = k.left(p, lat)
+      if (left === null || left === undefined) continue // e.g. a species that isn't misted
+      const key = `${p.id}:${k.kind}`
+      seen.add(key)
+      const start = reminderStart(left, hour)
+      const end = new Date(start.getTime() + 30 * 60 * 1000)
+      const body = {
+        summary: `${k.emoji} ${k.verb} ${name}`,
+        description: 'Plant Tracker reminder — open the app and log it when done.',
+        start: { dateTime: localDateTime(start), timeZone: tz },
+        end: { dateTime: localDateTime(end), timeZone: tz },
+        reminders: {
+          useDefault: false,
+          overrides: [{ method: 'popup', minutes: 0 }, { method: 'email', minutes: 0 }],
+        },
+        extendedProperties: { private: { ptApp: 'plant-tracker', ptPlantId: p.id, ptKind: k.kind } },
+      }
+      const ev = existing.get(key)
+      if (!ev) {
+        await calFetch(CAL, { method: 'POST', body: JSON.stringify(body) })
+      } else if (!(ev.start?.dateTime || '').startsWith(localDateTime(start).slice(0, 16)) || ev.summary !== body.summary) {
+        await calFetch(`${CAL}/${ev.id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      }
     }
   }
 
-  // clean up events for plants that no longer exist
-  for (const [pid, ev] of existing) {
-    if (!seen.has(pid)) await calFetch(`${CAL}/${ev.id}`, { method: 'DELETE' })
+  // clean up events for plants (or reminder kinds) that are gone
+  for (const [key, ev] of existing) {
+    if (!seen.has(key)) await calFetch(`${CAL}/${ev.id}`, { method: 'DELETE' })
   }
 }
 
 // remove every event we ever created (used when the toggle is switched off)
 export async function clearCalendarReminders() {
-  const listUrl = `${CAL}?privateExtendedProperty=${encodeURIComponent('ptApp=plant-tracker')}&maxResults=250&singleEvents=true`
-  const data = await calFetch(listUrl)
+  const data = await calFetch(LIST_URL)
   for (const ev of data?.items || []) {
     await calFetch(`${CAL}/${ev.id}`, { method: 'DELETE' })
   }

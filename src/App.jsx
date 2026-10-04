@@ -31,9 +31,11 @@ function BottomNav({ onFab }) {
       {items.map(({ icon: Icon, label, to }) => {
         const active = path === to
         return (
-          <button key={to} onClick={() => navigate(to)} className="nav-item">
+          <button key={to} onClick={() => navigate(to)} className="nav-item" aria-current={active ? 'page' : undefined}>
+            {/* same icon size and stacking active or not, in a fixed-width
+                slot: switching tabs no longer shoves the other items sideways */}
             {active
-              ? <div className="nav-pill"><Icon size={14} /><span>{label}</span></div>
+              ? <div className="nav-pill"><Icon size={20} /><span>{label}</span></div>
               : <><Icon size={20} /><span className="nav-label">{label}</span></>
             }
           </button>
@@ -53,6 +55,37 @@ function BottomNav({ onFab }) {
   )
 }
 
+// One toast at a time; care logs and removals carry an Undo.
+function Toast() {
+  const { toast, dismissToast } = useStore()
+  if (!toast) return null
+  return (
+    <div className="toast toast-app" role="status" aria-live="polite">
+      <span>{toast.text}</span>
+      {toast.undo && (
+        <button className="toast-undo" onClick={() => { toast.undo(); dismissToast() }}>Undo</button>
+      )}
+    </div>
+  )
+}
+
+// Sync trouble shows on every tab, not just in Account: an expired Google
+// session otherwise fails silently while the devices drift apart.
+function SyncBanner() {
+  const { sync, connectGoogle } = useStore()
+  const navigate = useNavigate()
+  if (sync.connected && !sync.error) return null
+  if (!sync.connected && !sync.error) return null
+  return (
+    <div className="sync-banner" role="alert">
+      <span>{sync.error}</span>
+      {!sync.connected
+        ? <button className="btn btn-sm btn-primary" onClick={connectGoogle}>Reconnect</button>
+        : <button className="btn btn-sm btn-secondary" onClick={() => navigate('/account')}>Details</button>}
+    </div>
+  )
+}
+
 function AppShell() {
   const { state } = useStore()
   const [showAdd, setShowAdd] = useState(false)
@@ -62,14 +95,16 @@ function AppShell() {
   return (
     <div className="app-shell">
       <div className="bg-blobs" />
+      <SyncBanner />
       <Routes>
-        <Route path="/"        element={<Dashboard />} />
+        <Route path="/"        element={<Dashboard onAdd={() => setShowAdd(true)} />} />
         <Route path="/plan"    element={<PlanView />} />
         <Route path="/account" element={<Account />} />
         <Route path="*"        element={<Navigate to="/" replace />} />
       </Routes>
       <BottomNav onFab={() => setShowAdd(true)} />
       {showAdd && <AddPlantModal onClose={() => setShowAdd(false)} />}
+      <Toast />
     </div>
   )
 }

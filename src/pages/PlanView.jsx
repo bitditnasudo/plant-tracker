@@ -6,6 +6,7 @@ import { getCatalogPlant, LIGHT_LABELS } from '../lib/catalog.js'
 import { waterDaysLeft, daysLeftLabel } from '../lib/schedule.js'
 import { PlantIcon } from '../components/PlantIcons.jsx'
 import { PlantDetailModal } from '../components/PlantDetailModal.jsx'
+import { Sheet, ConfirmSheet } from '../components/Sheet.jsx'
 
 const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 
@@ -89,8 +90,10 @@ function segMeta(w, view, metersPerUnit) {
 
 export default function PlanView() {
   const {
-    state, planImage, icons, savePlanImage, clearPlan, setPlan, updatePlant,
+    state, planImage, icons, savePlanImage, clearPlan, setPlan, updatePlant, showToast,
   } = useStore()
+  const [editZone, setEditZone] = useState(null)       // zone being edited (tap in view mode)
+  const [confirmClear, setConfirmClear] = useState(false)
   const plan = state.plan
   const lat = state.settings.location?.lat
 
@@ -278,7 +281,9 @@ export default function PlanView() {
   const markerDown = (e, plant) => {
     e.stopPropagation()
     if (mode === 'erase') {
+      const prev = { x: plant.x, y: plant.y, zoneId: plant.zoneId }
       updatePlant(plant.id, { x: null, y: null, zoneId: null })
+      showToast({ text: `${plant.nickname || getCatalogPlant(plant.catalogId)?.name || 'Plant'} taken off the plan`, undo: () => updatePlant(plant.id, prev) })
       return
     }
     if (mode !== 'view') return
@@ -312,7 +317,14 @@ export default function PlanView() {
     if (jiggleId === plant.id && start.moved) {
       // finalize zone assignment after a drag
       const zone = zoneAt({ x: plant.x, y: plant.y })
-      updatePlant(plant.id, { zoneId: zone?.id || null })
+      const inherit = zone && typeof zone.outdoor === 'boolean' && zone.outdoor !== !!plant.isOutside
+      updatePlant(plant.id, { zoneId: zone?.id || null, ...(inherit ? { isOutside: zone.outdoor } : {}) })
+      if (inherit) {
+        showToast({
+          text: `Moved to ${zone.name} — now ${zone.outdoor ? 'outside' : 'inside'}`,
+          undo: () => updatePlant(plant.id, { isOutside: !zone.outdoor }),
+        })
+      }
     } else if (!start.moved && jiggleId !== plant.id) {
       setDetailPlant(plant)
     }
@@ -322,7 +334,9 @@ export default function PlanView() {
   const winDown = (e, w) => {
     e.stopPropagation()
     if (mode === 'erase') {
+      const before = plan.windows
       setPlan({ windows: plan.windows.filter(x => x.id !== w.id) })
+      showToast({ text: 'Window removed', undo: () => setPlan({ windows: before }) })
       return
     }
     if (mode === 'view') {
@@ -394,7 +408,7 @@ export default function PlanView() {
       if (calPoints.length === 1) return 'Tap the other end of the known measurement'
       return plan.metersPerUnit ? 'Tap two points to measure a distance' : 'Tap both ends of a known measurement to set the scale'
     }
-    if (mode === 'erase') return 'Tap a plant, window or zone to remove it from the plan'
+    if (mode === 'erase') return 'Tap a plant, window or zone to remove it from the plan (each can be undone)'
     if (jiggleId) return 'Drag the shaking plant to move it · tap elsewhere when done'
     return winInfo
   }, [mode, placingId, jiggleId, calPoints, measure, plan.metersPerUnit, state.plants, winDraft, winInfo])
@@ -489,10 +503,21 @@ export default function PlanView() {
               left: z.x * view.s + view.tx, top: z.y * view.s + view.ty,
               width: z.w * view.s, height: z.h * view.s,
             }}
-            onPointerDown={e => e.stopPropagation()}
-            onClick={() => mode === 'erase' && setPlan({ zones: plan.zones.filter(x => x.id !== z.id) })}
+            onPointerDown={e => { e.stopPropagation(); e.currentTarget._down = { x: e.clientX, y: e.clientY } }}
+            onClick={e => {
+              // a drag that started on the zone is not a tap on it
+              const d = e.currentTarget._down
+              if (d && Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 8) return
+              if (mode === 'erase') {
+                const before = plan.zones
+                setPlan({ zones: plan.zones.filter(x => x.id !== z.id) })
+                showToast({ text: `Zone “${z.name}” removed`, undo: () => setPlan({ zones: before }) })
+              } else if (mode === 'view') {
+                setEditZone(z)
+              }
+            }}
           >
-            <span className="zone-chip">{z.name} · {LIGHT_LABELS[z.light]}</span>
+            <span className="zone-chip">{z.name} · {LIGHT_LABELS[z.light]}{z.outdoor ? ' · outside' : ''}</span>
           </div>
         ))}
         {zoneDraft && (() => {
@@ -610,20 +635,41 @@ export default function PlanView() {
       {zoneSheet && (
         <ZoneSheet
           suggested={zoneSheet.suggested}
-          onSave={(name, light) => {
+          onSave={(name, light, outdoor) => {
             const { suggested, ...rect } = zoneSheet
-            const zone = { id: crypto.randomUUID(), ...rect, name, light }
+            const zone = { id: crypto.randomUUID(), ...rect, name, light, outdoor }
             setPlan({ zones: [...plan.zones, zone] })
             // adopt plants already sitting inside the new zone
             placed.forEach(p => {
               if (p.x >= zone.x && p.x <= zone.x + zone.w && p.y >= zone.y && p.y <= zone.y + zone.h) {
-                updatePlant(p.id, { zoneId: zone.id })
+                updatePlant(p.id, { zoneId: zone.id, isOutside: outdoor })
               }
             })
             setZoneSheet(null)
             setMode('view')
           }}
           onClose={() => setZoneSheet(null)}
+        />
+      )}
+
+      {/* edit an existing zone (tap it in view mode) */}
+      {editZone && (
+        <ZoneSheet
+          zone={editZone}
+          onSave={(name, light, outdoor) => {
+            setPlan({ zones: plan.zones.map(z => z.id === editZone.id ? { ...z, name, light, outdoor } : z) })
+            const inZone = state.plants.filter(p => p.zoneId === editZone.id && !!p.isOutside !== outdoor)
+            inZone.forEach(p => updatePlant(p.id, { isOutside: outdoor }))
+            if (inZone.length) showToast({ text: `${inZone.length} plant${inZone.length === 1 ? '' : 's'} in ${name} now ${outdoor ? 'outside' : 'inside'}` })
+            setEditZone(null)
+          }}
+          onDelete={() => {
+            const before = plan.zones
+            setPlan({ zones: plan.zones.filter(x => x.id !== editZone.id) })
+            showToast({ text: `Zone “${editZone.name}” removed`, undo: () => setPlan({ zones: before }) })
+            setEditZone(null)
+          }}
+          onClose={() => setEditZone(null)}
         />
       )}
 
@@ -642,9 +688,7 @@ export default function PlanView() {
 
       {/* north orientation sheet */}
       {northSheet && (
-        <div className="overlay" onClick={() => setNorthSheet(false)}>
-          <div className="sheet" onClick={e => e.stopPropagation()}>
-            <div className="sheet-handle" />
+        <Sheet onClose={() => setNorthSheet(false)} label="Building orientation">
             <h2>Building orientation</h2>
             <p className="muted sheet-lead">
               Rotate until the arrow points to real-world North on your plan. Window facings (and their light) are computed from this.
@@ -658,15 +702,24 @@ export default function PlanView() {
               onChange={e => setPlan({ northDeg: +e.target.value })}
             />
             <button className="btn btn-primary btn-block sheet-cta" onClick={() => setNorthSheet(false)}>Done</button>
-          </div>
-        </div>
+        </Sheet>
+      )}
+
+      {confirmClear && (
+        <ConfirmSheet
+          title="Remove the floor plan?"
+          body="The plan image, its windows and its light zones are deleted on every device. Your plants stay — they just won't be on a map."
+          confirmLabel="Remove floor plan" danger
+          onConfirm={clearPlan}
+          onClose={() => setConfirmClear(false)}
+        />
       )}
 
       {freshDetail && <PlantDetailModal plant={freshDetail} onClose={() => setDetailPlant(null)} />}
 
       <p className="muted plan-footnote">
-        Pinch or scroll to zoom · drag to pan · press and hold a plant until it shakes to move it ·{' '}
-        <a href="#" className="plan-remove" onClick={e => { e.preventDefault(); if (confirm('Remove the floor plan and all windows/zones?')) clearPlan() }}>remove plan</a>
+        Pinch or scroll to zoom · drag to pan · press and hold a plant until it shakes to move it · tap a zone to edit it ·{' '}
+        <button type="button" className="plan-remove link-btn" onClick={() => setConfirmClear(true)}>remove plan</button>
       </p>
     </div>
   )
@@ -676,34 +729,46 @@ function normRect({ x0, y0, x1, y1 }) {
   return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) }
 }
 
-function ZoneSheet({ suggested, onSave, onClose }) {
-  const [name, setName] = useState('')
-  const [light, setLight] = useState(suggested?.light || 'partial')
+function ZoneSheet({ zone, suggested, onSave, onDelete, onClose }) {
+  const [name, setName] = useState(zone?.name || '')
+  const [light, setLight] = useState(zone?.light || suggested?.light || 'partial')
+  // indoor/outdoor decides where the plants in this room live (rain + wind)
+  const [outdoor, setOutdoor] = useState(typeof zone?.outdoor === 'boolean' ? zone.outdoor : null)
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        <h2>New light zone</h2>
-        <div className="field">
-          <label>Room name</label>
-          <input value={name} placeholder="e.g. Living room" onChange={e => setName(e.target.value)} autoFocus />
-        </div>
-        <div className="field">
-          <label>Light in this room</label>
-          <div className="seg">
-            {['direct', 'partial', 'shade'].map(l => (
-              <button key={l} className={light === l ? 'is-active' : ''} onClick={() => setLight(l)}>{LIGHT_LABELS[l]}</button>
-            ))}
-          </div>
-          {suggested && (
-            <p className="field-note">
-              Suggested: <b>{LIGHT_LABELS[suggested.light]}</b> — {suggested.reason}. Adjust if you know better.
-            </p>
-          )}
-        </div>
-        <button className="btn btn-primary btn-block" disabled={!name.trim()} onClick={() => onSave(name.trim(), light)}>Save zone</button>
+    <Sheet onClose={onClose} label={zone ? 'Edit zone' : 'New light zone'}>
+      <h2>{zone ? 'Edit zone' : 'New light zone'}</h2>
+      <div className="field">
+        <label>Room name</label>
+        <input value={name} placeholder="e.g. Living room" onChange={e => setName(e.target.value)} autoFocus={!zone} />
       </div>
-    </div>
+      <div className="field">
+        <label>Indoors or outdoors?</label>
+        <div className="seg">
+          <button className={outdoor === false ? 'is-active' : ''} onClick={() => setOutdoor(false)}>Indoors</button>
+          <button className={outdoor === true ? 'is-active' : ''} onClick={() => setOutdoor(true)}>Outdoors (balcony, terrace…)</button>
+        </div>
+        <p className="field-note">Plants placed here follow it — outdoor rooms get rain questions and wind adjustment.</p>
+      </div>
+      <div className="field">
+        <label>Light in this room</label>
+        <div className="seg">
+          {['direct', 'partial', 'shade'].map(l => (
+            <button key={l} className={light === l ? 'is-active' : ''} onClick={() => setLight(l)}>{LIGHT_LABELS[l]}</button>
+          ))}
+        </div>
+        {suggested && (
+          <p className="field-note">
+            Suggested: <b>{LIGHT_LABELS[suggested.light]}</b> — {suggested.reason}. Adjust if you know better.
+          </p>
+        )}
+      </div>
+      <button className="btn btn-primary btn-block" disabled={!name.trim() || outdoor === null} onClick={() => onSave(name.trim(), light, outdoor)}>
+        {zone ? 'Save changes' : 'Save zone'}
+      </button>
+      {onDelete && (
+        <button className="btn btn-danger btn-block sheet-cta" onClick={onDelete}>Remove zone</button>
+      )}
+    </Sheet>
   )
 }
 
@@ -711,9 +776,7 @@ function ScaleSheet({ onSave, onClose }) {
   const [meters, setMeters] = useState('')
   const val = parseFloat(meters)
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <div className="sheet-handle" />
+    <Sheet onClose={onClose} label="Set the scale">
         <h2>Set the scale</h2>
         <p className="muted sheet-lead">
           How long is the measurement you just marked, in real life?
@@ -723,7 +786,6 @@ function ScaleSheet({ onSave, onClose }) {
           <input type="number" inputMode="decimal" min="0.05" step="0.01" value={meters} placeholder="e.g. 3.50" onChange={e => setMeters(e.target.value)} autoFocus />
         </div>
         <button className="btn btn-primary btn-block" disabled={!(val > 0)} onClick={() => onSave(val)}>Save scale</button>
-      </div>
-    </div>
+    </Sheet>
   )
 }

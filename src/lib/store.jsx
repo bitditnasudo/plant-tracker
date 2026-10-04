@@ -6,68 +6,33 @@ import { applyRainAnswer, setWindLog } from './schedule.js'
 import { setCustomCatalog, getCatalogPlant } from './catalog.js'
 import {
   isAuthenticated, signIn, clearToken as clearGoogleToken,
-  findSyncFile, createSyncFile, updateSyncFile, downloadSyncFile, AuthExpiredError,
+  findSyncFile, createSyncFile, updateSyncFile, downloadSyncFile, getSyncFileInfo,
+  snapshotIfDue, listSnapshots, downloadSnapshot, AuthExpiredError, NotFoundError,
 } from './googleDrive.js'
 import { syncCalendarReminders, clearCalendarReminders } from './calendarSync.js'
 import { fetchWindSensitivity } from './perenual.js'
 import { deriveWindSensitivityFromCatalog } from './schedule.js'
+import { mergeStates, differsFromRemote, prepareImport, stampPlant, nowIso } from './merge.js'
+
+export { mergeStates }
 
 // injected by vite.config.js at build time
 export const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 export const BUILD_COMMIT = typeof __BUILD_COMMIT__ !== 'undefined' ? __BUILD_COMMIT__ : 'dev'
 export const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : null
 const LS_KEY = 'plant-tracker:v1'
-const SYNC_META_KEY = 'plant-tracker:sync' // {fileId, savedAt of last pushed/applied payload}
+// {fileId, remoteVersion (Drive's counter at our last pull/push), dirty, lastSync, snapshotDay}
+const SYNC_META_KEY = 'plant-tracker:sync'
 // Daily wind history is a device-local cache, not user data: Open-Meteo
 // backfills 30 days on every fetch, so it needs no syncing or merging.
 const WIND_LOG_KEY = 'plant-tracker:windlog'
+
+export const WEATHER_STALE_MS = 30 * 60 * 1000
 
 const loadWindLog = () => { try { return JSON.parse(localStorage.getItem(WIND_LOG_KEY)) || {} } catch { return {} } }
 
 const loadSyncMeta = () => { try { return JSON.parse(localStorage.getItem(SYNC_META_KEY)) || {} } catch { return {} } }
 const saveSyncMeta = m => localStorage.setItem(SYNC_META_KEY, JSON.stringify(m))
-
-// Merge two copies of the app state so no device can clobber another:
-// plants union by id with newest-edit-wins, deletions via tombstones,
-// coarser sections (plan / settings / profile) by their section stamp.
-// Unstamped ties go to the remote copy (transitional pre-stamp data).
-export function mergeStates(local, remote) {
-  const deleted = { ...(remote.deleted || {}) }
-  for (const [id, ts] of Object.entries(local.deleted || {})) {
-    if (!deleted[id] || ts > deleted[id]) deleted[id] = ts
-  }
-
-  const byId = new Map()
-  for (const p of remote.plants || []) byId.set(p.id, p)
-  for (const p of local.plants || []) {
-    const cur = byId.get(p.id)
-    if (!cur || (p.updatedAt || '') > (cur.updatedAt || '')) byId.set(p.id, p)
-  }
-  const plants = [...byId.values()].filter(p => !(deleted[p.id] && deleted[p.id] > (p.updatedAt || '')))
-
-  const custom = new Map()
-  for (const e of remote.customCatalog || []) custom.set(e.id, e)
-  for (const e of local.customCatalog || []) custom.set(e.id, e)
-
-  const planFromLocal = !!local.plan?.updatedAt && local.plan.updatedAt >= (remote.plan?.updatedAt || '')
-  const settingsFromLocal = !!local.settingsUpdatedAt && local.settingsUpdatedAt >= (remote.settingsUpdatedAt || '')
-  const profileFromLocal = !!local.profileUpdatedAt && local.profileUpdatedAt >= (remote.profileUpdatedAt || '')
-
-  return {
-    planFromLocal,
-    state: {
-      ...remote, ...local,
-      plants,
-      deleted,
-      customCatalog: [...custom.values()],
-      plan: planFromLocal ? local.plan : remote.plan,
-      settings: settingsFromLocal ? local.settings : remote.settings,
-      settingsUpdatedAt: settingsFromLocal ? local.settingsUpdatedAt : remote.settingsUpdatedAt,
-      profile: profileFromLocal ? local.profile : remote.profile,
-      profileUpdatedAt: profileFromLocal ? local.profileUpdatedAt : remote.profileUpdatedAt,
-    },
-  }
-}
 
 // v1 windows were tap-points {x, y, facingDeg}; they're now wall segments
 // {x0, y0, x1, y1, facingSign}. Convert old data (local or synced).
@@ -92,22 +57,41 @@ function migratePlan(plan) {
 const ENV_GEMINI = import.meta.env.VITE_GEMINI_KEY || ''
 const ENV_PERENUAL = import.meta.env.VITE_PERENUAL_KEY || ''
 
-const nowIso = () => new Date().toISOString()
+const todayIso = () => formatISO(new Date(), { representation: 'date' })
+
+// Care actions: the date field each one moves, and how the toast says it.
+// A care log entry is {id, type, date, at, source?, text?, photoId?}; types
+// are these three plus 'rain', 'note', 'photo' and 'repot'.
+export const CARE = {
+  water: { field: 'lastWatered', verb: 'Watered' },
+  mist:  { field: 'lastMisted', verb: 'Misted' },
+  feed:  { field: 'lastFertilized', verb: 'Fed' },
+}
+const careEntry = (type, date, extra = {}) => ({ id: crypto.randomUUID(), type, date, at: nowIso(), ...extra })
 
 const DEFAULT_STATE = {
   profile: { name: '', email: '' },
-  settings: { geminiKey: ENV_GEMINI, perenualKey: ENV_PERENUAL, location: null, onboardingDone: false, calendarReminders: false }, // location: {lat, lon, label}
+  settings: {
+    geminiKey: ENV_GEMINI, perenualKey: ENV_PERENUAL, location: null, onboardingDone: false,
+    calendarReminders: false,        // watering events
+    calendarCare: false,             // mist + feed events too
+    reminderHour: 9,                 // local hour reminder events fire
+    trip: null,                      // {from, to} ISO dates while planning/away
+  }, // location: {lat, lon, label}
   customCatalog: [],              // catalogue entries imported from the online search
   deleted: {},                    // plantId -> ISO tombstone, so deletions merge across devices
   settingsUpdatedAt: null,
+  settingsFieldAt: {},            // per-key stamps, so two devices' settings edits both survive
   profileUpdatedAt: null,
+  profileFieldAt: {},
+  classificationsBackfilledAt: null,
   plan: {
     hasImage: false,
     width: 0, height: 0,          // intrinsic px of the uploaded plan
     northDeg: 0,                  // rotation of north relative to "up" on the plan
     metersPerUnit: null,          // set via two-point calibration
     windows: [],                  // {id, x, y, facingDeg}
-    zones: [],                    // {id, name, x, y, w, h, light}
+    zones: [],                    // {id, name, x, y, w, h, light, outdoor}
   },
   plants: [],                     // see AddPlantModal for shape
 }
@@ -129,6 +113,7 @@ function loadState() {
     setCustomCatalog(parsed.customCatalog || [])
     return {
       ...DEFAULT_STATE, ...parsed,
+      classificationsBackfilledAt: parsed.classificationsBackfilledAt || parsed.settings?.classificationsBackfilledAt || null,
       profile: { ...DEFAULT_STATE.profile, ...parsed.profile },
       settings,
       plan: migratePlan({ ...DEFAULT_STATE.plan, ...parsed.plan }),
@@ -149,6 +134,8 @@ export function StoreProvider({ children }) {
   const [weatherError, setWeatherError] = useState(null)
   const [planImage, setPlanImage] = useState(null)   // dataURL
   const [icons, setIcons] = useState({})             // plantId -> dataURL (Gemini-generated)
+  const [photos, setPhotos] = useState({})           // photoId -> dataURL (care-log photos)
+  const [toast, setToast] = useState(null)           // {id, text, undo?}
   const [windLog, setWindLogState] = useState(() => {  // { 'YYYY-MM-DD': {max, mean} }
     const l = loadWindLog()
     setWindLog(l) // register with the schedule module before first render
@@ -157,17 +144,21 @@ export function StoreProvider({ children }) {
 
   // Google Drive sync
   const [sync, setSync] = useState(() => ({
-    connected: isAuthenticated(), syncing: false, error: null,
+    connected: isAuthenticated(), syncing: false, error: null, offline: false,
+    pending: !!loadSyncMeta().dirty,
     lastSync: loadSyncMeta().lastSync || null,
   }))
-  const dirty = useRef(false)        // local changes not yet pushed
+  // Local changes not yet pushed. Persisted, so an edit made seconds before
+  // the app is closed is still uploaded on the next launch.
+  const dirty = useRef(!!loadSyncMeta().dirty)
+  const editSeq = useRef(0)          // bumps on every local edit; detects edits made mid-sync
   const skipDirty = useRef(0)        // suppress dirty-marking while applying remote data
   const firstRun = useRef(true)
   const syncBusy = useRef(false)
   const syncTimer = useRef(null)
   const syncNowRef = useRef(() => {})
   const latest = useRef({})          // freshest state/blobs for payload building
-  latest.current = { state, planImage, icons }
+  latest.current = { state, planImage, icons, photos }
 
   // persist small state
   useEffect(() => {
@@ -202,15 +193,22 @@ export function StoreProvider({ children }) {
     ;(async () => {
       try {
         const img = await idbGet('plan:image')
-        if (alive && img) setPlanImage(img)
         const keys = await idbKeys()
         const iconMap = {}
+        const photoMap = {}
         for (const k of keys) {
-          if (typeof k === 'string' && k.startsWith('icon:')) {
-            iconMap[k.slice(5)] = await idbGet(k)
-          }
+          if (typeof k !== 'string') continue
+          if (k.startsWith('icon:')) iconMap[k.slice(5)] = await idbGet(k)
+          if (k.startsWith('photo:')) photoMap[k.slice(6)] = await idbGet(k)
         }
-        if (alive) setIcons(iconMap)
+        // the boot load is not an edit: set everything in one tick (one
+        // render) and keep it from marking the device dirty
+        if (alive && (img || Object.keys(iconMap).length || Object.keys(photoMap).length)) {
+          skipDirty.current += 1
+          if (img) setPlanImage(img)
+          setIcons(iconMap)
+          setPhotos(photoMap)
+        }
       } catch (e) {
         console.error('IDB load failed', e)
       }
@@ -218,8 +216,13 @@ export function StoreProvider({ children }) {
     return () => { alive = false }
   }, [])
 
-  // weather: refresh when location set, then every 30 min
+  // Weather: refresh when the location is set, every 30 min, and whenever the
+  // app comes back to the foreground with data older than that — a PWA resumed
+  // after hours in the background would otherwise keep a stale "yesterday".
   const location = state.settings.location
+  const weatherRef = useRef(null)
+  weatherRef.current = weather
+  const loadWeatherRef = useRef(async () => {})
   useEffect(() => {
     if (!location) { setWeather(null); return }
     let alive = true
@@ -231,152 +234,326 @@ export function StoreProvider({ children }) {
         if (alive) setWeatherError(e.message)
       }
     }
+    loadWeatherRef.current = load
     load()
-    const t = setInterval(load, 30 * 60 * 1000)
-    return () => { alive = false; clearInterval(t) }
+    const t = setInterval(load, WEATHER_STALE_MS)
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return
+      const w = weatherRef.current
+      if (!w || Date.now() - w.fetchedAt > WEATHER_STALE_MS) load()
+    }
+    document.addEventListener('visibilitychange', onShow)
+    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onShow) }
   }, [location?.lat, location?.lon])
 
   const patch = useCallback(updater => setState(s => updater(s)), [])
 
   /* ── Google Drive sync ─────────────────────────────────────────────── */
 
-  // replace all local data with a synced/imported payload (does not mark dirty)
-  const applyPayload = useCallback(async data => {
-    if (!data?.state) throw new Error('Invalid data file')
-    skipDirty.current += 1
-    setState({
-      ...DEFAULT_STATE, ...data.state,
-      profile: { ...DEFAULT_STATE.profile, ...data.state.profile },
-      settings: { ...DEFAULT_STATE.settings, ...data.state.settings },
-      plan: migratePlan({ ...DEFAULT_STATE.plan, ...data.state.plan }),
-    })
-    setCustomCatalog(data.state.customCatalog || [])
-    if (data.blobs?.planImage) {
-      await idbSet('plan:image', data.blobs.planImage)
-      setPlanImage(data.blobs.planImage)
-    } else {
-      try { await idbDelete('plan:image') } catch { /* ignore */ }
-      setPlanImage(null)
-    }
-    const iconMap = data.blobs?.icons || {}
+  // Write blobs to IndexedDB, dropping ones nothing references any more.
+  const writeBlobs = useCallback(async ({ planImage: img, icons: iconMap = {}, photos: photoMap = {} }) => {
+    if (img) await idbSet('plan:image', img)
+    else { try { await idbDelete('plan:image') } catch { /* ignore */ } }
     for (const [id, url] of Object.entries(iconMap)) await idbSet(`icon:${id}`, url)
-    setIcons(iconMap)
+    for (const [id, url] of Object.entries(photoMap)) await idbSet(`photo:${id}`, url)
+    try {
+      for (const k of await idbKeys()) {
+        if (typeof k !== 'string') continue
+        if (k.startsWith('icon:') && !(k.slice(5) in iconMap)) await idbDelete(k)
+        if (k.startsWith('photo:') && !(k.slice(6) in photoMap)) await idbDelete(k)
+      }
+    } catch { /* ignore */ }
   }, [])
+
+  // Apply a merged sync result. The state update re-merges onto the CURRENT
+  // state, so an edit made while the sync was in flight (answering a rain
+  // bubble, say) survives instead of being replaced by an older snapshot. All
+  // setters run in one tick: one render, one dirty-effect run, absorbed by
+  // skipDirty — so a pull no longer triggers a spurious re-upload.
+  const applyRemote = useCallback(async (merged, blobs) => {
+    await writeBlobs(blobs)
+    skipDirty.current += 1
+    setState(cur => {
+      const { state: m } = mergeStates(cur, merged)
+      return { ...m, plan: migratePlan({ ...DEFAULT_STATE.plan, ...m.plan }) }
+    })
+    setCustomCatalog(merged.customCatalog || [])
+    setPlanImage(blobs.planImage || null)
+    setIcons(blobs.icons || {})
+    setPhotos(blobs.photos || {})
+  }, [writeBlobs])
+
+  // Replace everything with a backup. It's a local edit, so it is NOT
+  // absorbed by skipDirty: the dirty effect pushes it to Drive, and
+  // prepareImport() makes sure it wins the merge there.
+  const replaceAll = useCallback(async data => {
+    if (!data?.state) throw new Error('Invalid data file')
+    const prepared = prepareImport(data.state, latest.current.state)
+    const blobs = { planImage: data.blobs?.planImage || null, icons: data.blobs?.icons || {}, photos: data.blobs?.photos || {} }
+    await writeBlobs(blobs)
+    setState({
+      ...DEFAULT_STATE, ...prepared,
+      profile: { ...DEFAULT_STATE.profile, ...prepared.profile },
+      settings: { ...DEFAULT_STATE.settings, ...prepared.settings },
+      plan: migratePlan({ ...DEFAULT_STATE.plan, ...prepared.plan }),
+    })
+    setCustomCatalog(prepared.customCatalog || [])
+    setPlanImage(blobs.planImage)
+    setIcons(blobs.icons)
+    setPhotos(blobs.photos)
+  }, [writeBlobs])
 
   // Read blobs straight from IndexedDB so a push never races the async boot
   // load (that race once uploaded a payload without the floor plan).
-  const buildPayload = useCallback(async () => {
+  const readLocalBlobs = useCallback(async () => {
     let planImg = latest.current.planImage
     let iconMap = latest.current.icons
+    let photoMap = latest.current.photos
     try {
       planImg = (await idbGet('plan:image')) || planImg || null
-      const keys = await idbKeys()
-      const m = {}
-      for (const k of keys) {
-        if (typeof k === 'string' && k.startsWith('icon:')) m[k.slice(5)] = await idbGet(k)
+      const ic = {}
+      const ph = {}
+      for (const k of await idbKeys()) {
+        if (typeof k !== 'string') continue
+        if (k.startsWith('icon:')) ic[k.slice(5)] = await idbGet(k)
+        if (k.startsWith('photo:')) ph[k.slice(6)] = await idbGet(k)
       }
-      if (Object.keys(m).length || Object.keys(iconMap).length === 0) iconMap = m
+      if (Object.keys(ic).length || Object.keys(iconMap).length === 0) iconMap = ic
+      if (Object.keys(ph).length || Object.keys(photoMap).length === 0) photoMap = ph
     } catch { /* fall back to in-memory copies */ }
-    return {
-      savedAt: new Date().toISOString(),
-      version: APP_VERSION,
-      state: latest.current.state,
-      blobs: { planImage: planImg, icons: iconMap },
-    }
+    return { planImage: planImg || null, icons: iconMap, photos: photoMap }
   }, [])
 
   const syncNow = useCallback(async () => {
     if (!isAuthenticated()) { setSync(s => ({ ...s, connected: false })); return }
     if (syncBusy.current) return
     syncBusy.current = true
-    setSync(s => ({ ...s, connected: true, syncing: true, error: null }))
+    setSync(s => ({ ...s, connected: true, syncing: true }))
+    const seq = editSeq.current
     try {
       const meta = loadSyncMeta()
-      let fileId = meta.fileId || (await findSyncFile())?.id || null
-
+      let fileId = meta.fileId || null
+      let info = null
       if (fileId) {
-        const remote = await downloadSyncFile(fileId).catch(() => null)
-        const remoteNewer = !!remote?.savedAt && remote.savedAt > (meta.savedAt || '')
+        // a sync file deleted from Drive must not wedge sync forever: forget
+        // it and fall through to find-or-create
+        info = await getSyncFileInfo(fileId).catch(e => { if (e instanceof NotFoundError) return null; throw e })
+        if (!info || info.trashed) fileId = null
+      }
+      if (!fileId) {
+        const found = await findSyncFile()
+        if (found) { fileId = found.id; info = await getSyncFileInfo(fileId) }
+      }
 
-        if (remote?.state && (remoteNewer || dirty.current)) {
-          // Read blobs FIRST, then merge, so the merge uses the freshest local
-          // state. Doing it the other way round meant an edit made during these
-          // awaits (e.g. answering a rain bubble) was silently overwritten by
-          // applyPayload with a snapshot taken before it.
-          const localPlanImg = (await idbGet('plan:image').catch(() => null)) || latest.current.planImage
-          const remotePlanImg = remote.blobs?.planImage || null
+      let next
+      if (!fileId) {
+        // first ever sync for this account: create the file from local data
+        const blobs = await readLocalBlobs()
+        const payload = { savedAt: nowIso(), version: APP_VERSION, state: latest.current.state, blobs }
+        const created = await createSyncFile(JSON.stringify(payload))
+        next = { fileId: created.id, remoteVersion: created.version }
+      } else if (info.version !== meta.remoteVersion || dirty.current) {
+        const remote = await downloadSyncFile(fileId)
+        const local = await readLocalBlobs()
+        if (!remote?.state) {
+          // unreadable remote: this device's copy becomes the file
+          const payload = { savedAt: nowIso(), version: APP_VERSION, state: latest.current.state, blobs: local }
+          const up = await updateSyncFile(fileId, JSON.stringify(payload))
+          next = { fileId, remoteVersion: up.version }
+        } else {
+          const localState = latest.current.state
+          const { state: merged, planFromLocal } = mergeStates(localState, remote.state)
+          const rb = remote.blobs || {}
 
-          const localIcons = {}
-          try {
-            for (const k of await idbKeys()) {
-              if (typeof k === 'string' && k.startsWith('icon:')) localIcons[k.slice(5)] = await idbGet(k)
-            }
-          } catch { /* fall back to remote icons */ }
-          const icons = { ...(remote.blobs?.icons || {}), ...localIcons }
+          const remotePlan = rb.planImage || null
+          const planImage = !merged.plan?.hasImage ? null
+            : planFromLocal ? (local.planImage || remotePlan) : (remotePlan || local.planImage)
 
-          // merge instead of last-write-wins: a stale device can add its
-          // edits but can never wipe out plants it doesn't know about
-          const { state: merged, planFromLocal } = mergeStates(latest.current.state, remote.state)
-          const planImage = planFromLocal ? (localPlanImg || remotePlanImg) : (remotePlanImg || localPlanImg)
+          // icons follow each plant's iconAt stamp, so a regenerated icon
+          // reaches every device; icons of deleted plants are dropped
+          const localById = new Map((localState.plants || []).map(pl => [pl.id, pl]))
+          const remoteById = new Map((remote.state.plants || []).map(pl => [pl.id, pl]))
+          const icons = {}
+          for (const pl of merged.plants) {
+            const remoteWins = (remoteById.get(pl.id)?.iconAt || '') > (localById.get(pl.id)?.iconAt || '')
+            const url = remoteWins ? (rb.icons?.[pl.id] || local.icons[pl.id]) : (local.icons[pl.id] || rb.icons?.[pl.id])
+            if (url) icons[pl.id] = url
+          }
+          const photoIds = new Set(merged.plants.flatMap(pl => (pl.log || []).map(e => e.photoId).filter(Boolean)))
+          const photos = {}
+          for (const id of photoIds) {
+            const url = local.photos[id] || rb.photos?.[id]
+            if (url) photos[id] = url
+          }
+          const blobs = { planImage, icons, photos }
+          await applyRemote(merged, blobs)
 
-          await applyPayload({ state: merged, blobs: { planImage, icons } })
-
-          // re-upload when this device contributed anything the remote lacks
-          const remoteIds = new Set((remote.state.plants || []).map(p => p.id))
-          const contributed =
-            dirty.current ||
-            merged.plants.length !== (remote.state.plants || []).length ||
-            merged.plants.some(p => !remoteIds.has(p.id)) ||
-            (planImage && !remotePlanImg)
+          const sameMap = (a = {}, b = {}) =>
+            Object.keys(a).length === Object.keys(b || {}).length && Object.keys(a).every(k => a[k] === b[k])
+          const contributed = differsFromRemote(merged, remote.state) ||
+            planImage !== remotePlan || !sameMap(icons, rb.icons) || !sameMap(photos, rb.photos)
 
           if (contributed) {
-            const payload = { savedAt: nowIso(), version: APP_VERSION, state: merged, blobs: { planImage, icons } }
-            await updateSyncFile(fileId, JSON.stringify(payload))
-            dirty.current = false
-            saveSyncMeta({ fileId, savedAt: payload.savedAt, lastSync: Date.now() })
+            const payload = { savedAt: nowIso(), version: APP_VERSION, state: merged, blobs }
+            const up = await updateSyncFile(fileId, JSON.stringify(payload))
+            next = { fileId, remoteVersion: up.version }
           } else {
-            dirty.current = false
-            saveSyncMeta({ fileId, savedAt: remote.savedAt, lastSync: Date.now() })
+            next = { fileId, remoteVersion: info.version }
           }
-        } else {
-          saveSyncMeta({ ...meta, fileId, savedAt: meta.savedAt || remote?.savedAt || null, lastSync: Date.now() })
         }
       } else {
-        // first ever sync for this account: create the file from local data
-        const payload = await buildPayload()
-        fileId = await createSyncFile(JSON.stringify(payload))
-        dirty.current = false
-        saveSyncMeta({ fileId, savedAt: payload.savedAt, lastSync: Date.now() })
+        next = { fileId, remoteVersion: meta.remoteVersion }
       }
-      setSync({ connected: true, syncing: false, error: null, lastSync: Date.now() })
+
+      // an edit made during this sync keeps the device dirty for another round
+      const clean = editSeq.current === seq
+      if (clean) dirty.current = false
+      saveSyncMeta({ ...loadSyncMeta(), ...next, dirty: dirty.current, lastSync: Date.now() })
+      setSync({ connected: true, syncing: false, error: null, offline: false, pending: dirty.current, lastSync: Date.now() })
+      if (!clean) { clearTimeout(syncTimer.current); syncTimer.current = setTimeout(() => syncNowRef.current(), 1500) }
+
+      // once a day, a dated copy of the sync file (the newest 14 are kept)
+      const day = todayIso()
+      if (loadSyncMeta().snapshotDay !== day) {
+        snapshotIfDue(next.fileId, day)
+          .then(() => saveSyncMeta({ ...loadSyncMeta(), snapshotDay: day }))
+          .catch(() => { /* retried on the next sync */ })
+      }
     } catch (e) {
       const expired = e instanceof AuthExpiredError
+      // fetch rejects with a TypeError when the network is down
+      const offline = !expired && (!navigator.onLine || e instanceof TypeError)
       setSync(s => ({
-        ...s, syncing: false, connected: !expired,
-        error: expired ? 'Google session expired — reconnect in Account' : e.message,
+        ...s, syncing: false, connected: !expired, offline, pending: dirty.current,
+        error: expired ? 'Google session expired — reconnect to keep your devices in sync.'
+          : offline ? null : e.message,
       }))
     } finally {
       syncBusy.current = false
     }
-  }, [applyPayload, buildPayload])
+  }, [applyRemote, readLocalBlobs])
   syncNowRef.current = syncNow
 
-  // mark local edits dirty and schedule a debounced push
+  // mark local edits dirty (persisted) and schedule a debounced push
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return }
     if (skipDirty.current > 0) { skipDirty.current -= 1; return }
-    dirty.current = true
+    editSeq.current += 1
+    if (!dirty.current) {
+      dirty.current = true
+      saveSyncMeta({ ...loadSyncMeta(), dirty: true })
+      setSync(s => ({ ...s, pending: true }))
+    }
     if (!isAuthenticated()) return
     clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => syncNowRef.current(), 4000)
     return () => clearTimeout(syncTimer.current)
-  }, [state, planImage, icons])
+  }, [state, planImage, icons, photos])
 
-  // pull once on startup when already connected
+  // pull once on startup when already connected (this also pushes edits left
+  // dirty by a session that was closed before its push went out)
   useEffect(() => {
     if (isAuthenticated()) syncNowRef.current()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Hidden → push now rather than in 4 s (the app may be about to be killed).
+  // Visible again → pull, so a device left open picks up other devices' edits.
+  // Back online → retry.
+  useEffect(() => {
+    const onVis = () => {
+      if (!isAuthenticated()) return
+      if (document.visibilityState === 'hidden') {
+        if (dirty.current) { clearTimeout(syncTimer.current); syncNowRef.current() }
+      } else {
+        syncNowRef.current()
+      }
+    }
+    const onOnline = () => { if (isAuthenticated()) syncNowRef.current() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('online', onOnline)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [])
+
+  /* ── Toast, with optional undo ─────────────────────────────────────── */
+  const toastTimer = useRef(null)
+  const showToast = useCallback(t => {
+    clearTimeout(toastTimer.current)
+    const id = crypto.randomUUID()
+    setToast({ ...t, id })
+    toastTimer.current = setTimeout(() => setToast(cur => (cur?.id === id ? null : cur)), t.undo ? 7000 : 3500)
+  }, [])
+  const dismissToast = useCallback(() => { clearTimeout(toastTimer.current); setToast(null) }, [])
+
+  /* ── Care logging ──────────────────────────────────────────────────────
+   * One code path for every "I did it" tap (card, bell, bulk). Each logs an
+   * entry and moves the date field; the toast's Undo restores the previous
+   * values and removes the entry (remembered in logRemoved so a device that
+   * already synced the entry drops it too). */
+  // jobs: [{id, type}] — several plants and/or chores in one patch, one toast
+  const logCareJobs = useCallback((jobs, { date = todayIso(), source } = {}) => {
+    if (!jobs.length) return
+    const byPlant = new Map()
+    for (const j of jobs) byPlant.set(j.id, [...(byPlant.get(j.id) || []), j.type])
+    const before = new Map()
+    const entries = new Map()
+    patch(s => ({
+      ...s,
+      plants: s.plants.map(pl => {
+        const types = byPlant.get(pl.id)
+        if (!types) return pl
+        const prev = {}
+        const fields = {}
+        const newEntries = []
+        for (const type of types) {
+          const { field } = CARE[type]
+          prev[field] = pl[field] ?? null
+          fields[field] = date
+          if (type === 'water') {
+            prev.rainDelay = pl.rainDelay ?? false
+            prev.lastWateredBy = pl.lastWateredBy ?? null
+            fields.rainDelay = false
+            fields.lastWateredBy = 'hand'
+          }
+          newEntries.push(careEntry(type, date, source ? { source } : {}))
+        }
+        before.set(pl.id, prev)
+        entries.set(pl.id, newEntries.map(e => e.id))
+        return { ...stampPlant(pl, fields), log: [...newEntries, ...(pl.log || [])] }
+      }),
+    }))
+    const undo = () => patch(s => ({
+      ...s,
+      plants: s.plants.map(pl => {
+        if (!before.has(pl.id)) return pl
+        const gone = new Set(entries.get(pl.id))
+        return {
+          ...stampPlant(pl, before.get(pl.id)),
+          log: (pl.log || []).filter(e => !gone.has(e.id)),
+          logRemoved: [...(pl.logRemoved || []), ...gone],
+        }
+      }),
+    }))
+    const types = [...new Set(jobs.map(j => j.type))]
+    const verb = types.map((t, i) => (i ? CARE[t].verb.toLowerCase() : CARE[t].verb)).join(' + ')
+    const ids = [...byPlant.keys()]
+    const one = ids.length === 1 && latest.current.state.plants.find(pl => pl.id === ids[0])
+    const text = one
+      ? `${verb} ${one.nickname || getCatalogPlant(one.catalogId)?.name || 'plant'}`
+      : `${verb} ${ids.length} plants`
+    showToast({ text, undo })
+  }, [patch, showToast])
+  const logCare = useCallback((ids, type, opts) => logCareJobs(ids.map(id => ({ id, type })), opts), [logCareJobs])
+
+  const addLogEntry = useCallback((id, entry, fields = {}) => patch(s => ({
+    ...s,
+    plants: s.plants.map(pl => pl.id === id
+      ? { ...stampPlant(pl, fields), log: [{ ...careEntry(entry.type, entry.date || todayIso()), ...entry }, ...(pl.log || [])] }
+      : pl),
+  })), [patch])
 
   /* ── Wind classification pass ─────────────────────────────────────────
    * Walks the plants actually on the dashboard and stamps each one with a
@@ -441,20 +618,24 @@ export function StoreProvider({ children }) {
         perSpecies.set(plant.catalogId, cls)
       }
 
+      // stamp only a real change, so a stale device re-running this pass
+      // can't overwrite other devices' newer edits to the plant
       patch(st => ({
         ...st,
-        plants: st.plants.map(p => p.id === plant.id ? { ...p, windSensitivity: cls, updatedAt: nowIso() } : p),
+        plants: st.plants.map(p => p.id === plant.id && p.windSensitivity !== cls ? stampPlant(p, { windSensitivity: cls }) : p),
       }))
       results.push({ name: label, cls, via })
       setBackfill(b => ({ ...b, done: i + 1, results: [...results] }))
     }
 
-    patch(st => ({ ...st, settings: { ...st.settings, classificationsBackfilledAt: nowIso() }, settingsUpdatedAt: nowIso() }))
+    // deliberately outside settings: stamping the settings section for this
+    // marker once let a stale device's old settings win the merge
+    patch(st => ({ ...st, classificationsBackfilledAt: nowIso() }))
     setBackfill(b => ({ ...b, running: false }))
     backfillBusy.current = false
   }, [patch])
 
-  /* ── Google Calendar watering reminders ─────────────────────────────── */
+  /* ── Google Calendar reminders ──────────────────────────────────────── */
   const [calStatus, setCalStatus] = useState({ error: null, lastSync: null })
   const calBusy = useRef(false)
   const calTimer = useRef(null)
@@ -464,7 +645,7 @@ export function StoreProvider({ children }) {
     if (calBusy.current || !isAuthenticated() || !s.settings.calendarReminders) return
     calBusy.current = true
     try {
-      await syncCalendarReminders(s.plants, s.settings.location?.lat)
+      await syncCalendarReminders(s.plants, s.settings)
       setCalStatus({ error: null, lastSync: Date.now() })
     } catch (e) {
       setCalStatus(st => ({ ...st, error: e.message }))
@@ -474,21 +655,41 @@ export function StoreProvider({ children }) {
   }, [])
 
   // refresh reminder events shortly after any schedule-relevant change
+  const st = state.settings
   useEffect(() => {
-    if (!state.settings.calendarReminders || !sync.connected) return
+    if (!st.calendarReminders || !sync.connected) return
     clearTimeout(calTimer.current)
     calTimer.current = setTimeout(runCalendarSync, 5000)
     return () => clearTimeout(calTimer.current)
-  }, [state.plants, state.settings.calendarReminders, state.settings.location, sync.connected, runCalendarSync])
+  }, [state.plants, st.calendarReminders, st.calendarCare, st.reminderHour, st.location, sync.connected, runCalendarSync])
+
+  const setSettingsFn = useCallback(p => patch(s => {
+    const at = nowIso()
+    return {
+      ...s,
+      settings: { ...s.settings, ...p },
+      settingsUpdatedAt: at,
+      settingsFieldAt: { ...(s.settingsFieldAt || {}), ...Object.fromEntries(Object.keys(p).map(k => [k, at])) },
+    }
+  }), [patch])
 
   const api = useMemo(() => ({
     // every mutation stamps what it touched, so devices can merge correctly
-    setProfile: p => patch(s => ({ ...s, profile: { ...s.profile, ...p }, profileUpdatedAt: nowIso() })),
-    setSettings: p => patch(s => ({ ...s, settings: { ...s.settings, ...p }, settingsUpdatedAt: nowIso() })),
+    setProfile: p => patch(s => {
+      const at = nowIso()
+      return {
+        ...s,
+        profile: { ...s.profile, ...p },
+        profileUpdatedAt: at,
+        profileFieldAt: { ...(s.profileFieldAt || {}), ...Object.fromEntries(Object.keys(p).map(k => [k, at])) },
+      }
+    }),
+    setSettings: setSettingsFn,
     setPlan: p => patch(s => ({ ...s, plan: { ...s.plan, ...p, updatedAt: nowIso() } })),
 
     addPlant: plant => {
-      patch(s => ({ ...s, plants: [...s.plants, { ...plant, updatedAt: nowIso() }] }))
+      const at = nowIso()
+      patch(s => ({ ...s, plants: [...s.plants, { ...plant, updatedAt: at }] }))
       // classify after adding — debounced so a batch of additions costs one pass
       clearTimeout(classifyTimer.current)
       classifyTimer.current = setTimeout(() => backfillClassifications(), 3000)
@@ -498,34 +699,62 @@ export function StoreProvider({ children }) {
       customCatalog: [...s.customCatalog.filter(e => e.id !== entry.id), entry],
     })),
     updatePlant: (id, p) => patch(s => ({
-      ...s, plants: s.plants.map(pl => pl.id === id ? { ...pl, ...p, updatedAt: nowIso() } : pl),
+      ...s, plants: s.plants.map(pl => pl.id === id ? stampPlant(pl, p) : pl),
     })),
-    removePlant: async id => {
+    // Removing keeps a copy in memory for the toast's Undo; the tombstone is
+    // what deletes it on other devices, and Undo clears it again.
+    removePlant: id => {
+      const plant = latest.current.state.plants.find(pl => pl.id === id)
+      if (!plant) return
+      const icon = latest.current.icons[id]
       patch(s => ({
         ...s,
         plants: s.plants.filter(pl => pl.id !== id),
         deleted: { ...s.deleted, [id]: nowIso() },
       }))
-      try { await idbDelete(`icon:${id}`) } catch { /* ignore */ }
+      idbDelete(`icon:${id}`).catch(() => {})
       setIcons(ic => { const { [id]: _, ...rest } = ic; return rest })
+      const name = plant.nickname || getCatalogPlant(plant.catalogId)?.name || 'Plant'
+      showToast({
+        text: `Removed ${name}`,
+        undo: () => {
+          patch(s => {
+            const { [id]: _, ...deleted } = s.deleted
+            return { ...s, deleted, plants: [...s.plants, { ...plant, updatedAt: nowIso() }] }
+          })
+          if (icon) { idbSet(`icon:${id}`, icon).catch(() => {}); setIcons(ic => ({ ...ic, [id]: icon })) }
+        },
+      })
     },
 
-    markWatered: id => patch(s => ({
-      ...s, plants: s.plants.map(pl => pl.id === id
-        ? { ...pl, lastWatered: formatISO(new Date(), { representation: 'date' }), rainDelay: false, updatedAt: nowIso() }
+    logCare,
+    logCareJobs,
+    markWatered: id => logCare([id], 'water'),
+    markMisted: id => logCare([id], 'mist'),
+    markFertilized: id => logCare([id], 'feed'),
+    answerRain: (id, w, outcome) => {
+      const plant = latest.current.state.plants.find(pl => pl.id === id)
+      if (!plant) return
+      const fields = applyRainAnswer(plant, w, outcome)
+      addLogEntry(id, { type: 'rain', date: fields.lastWatered || fields.rainAnsweredFor, source: outcome }, fields)
+    },
+    addNote: (id, text) => addLogEntry(id, { type: 'note', text }),
+    logRepot: (id, date = todayIso()) => addLogEntry(id, { type: 'repot', date }, { lastRepotted: date }),
+    addPhoto: async (id, dataUrl, text = '') => {
+      const photoId = crypto.randomUUID()
+      await idbSet(`photo:${photoId}`, dataUrl)
+      setPhotos(ph => ({ ...ph, [photoId]: dataUrl }))
+      addLogEntry(id, { type: 'photo', photoId, ...(text ? { text } : {}) })
+    },
+    removeLogEntry: (id, entryId) => patch(s => ({
+      ...s,
+      plants: s.plants.map(pl => pl.id === id
+        ? { ...pl, updatedAt: nowIso(), log: (pl.log || []).filter(e => e.id !== entryId), logRemoved: [...(pl.logRemoved || []), entryId] }
         : pl),
     })),
-    markMisted: id => patch(s => ({
-      ...s, plants: s.plants.map(pl => pl.id === id
-        ? { ...pl, lastMisted: formatISO(new Date(), { representation: 'date' }), updatedAt: nowIso() } : pl),
-    })),
-    markFertilized: id => patch(s => ({
-      ...s, plants: s.plants.map(pl => pl.id === id
-        ? { ...pl, lastFertilized: formatISO(new Date(), { representation: 'date' }), updatedAt: nowIso() } : pl),
-    })),
-    answerRain: (id, w, gotWet) => patch(s => ({
-      ...s, plants: s.plants.map(pl => pl.id === id ? { ...applyRainAnswer(pl, w, gotWet), updatedAt: nowIso() } : pl),
-    })),
+
+    showToast,
+    dismissToast,
 
     savePlanImage: async (dataUrl, width, height) => {
       await idbSet('plan:image', dataUrl)
@@ -540,18 +769,26 @@ export function StoreProvider({ children }) {
     saveIcon: async (plantId, dataUrl) => {
       await idbSet(`icon:${plantId}`, dataUrl)
       setIcons(ic => ({ ...ic, [plantId]: dataUrl }))
+      // the stamp is what makes a regenerated icon win on the other devices
+      patch(s => ({ ...s, plants: s.plants.map(pl => pl.id === plantId ? stampPlant(pl, { iconAt: nowIso() }) : pl) }))
     },
 
     exportData: async () => {
-      const blobs = { planImage, icons }
-      return JSON.stringify({ version: APP_VERSION, state, blobs }, null, 2)
+      const blobs = { planImage, icons, photos }
+      return JSON.stringify({ version: APP_VERSION, savedAt: nowIso(), state, blobs }, null, 2)
     },
-    importData: async json => {
-      await applyPayload(JSON.parse(json))
-      // an import is a local edit: push it to Drive on the next sync
-      dirty.current = true
-      if (isAuthenticated()) syncNowRef.current()
+    // parse + summarise a backup for the confirm step, without applying it
+    readBackup: json => {
+      const data = typeof json === 'string' ? JSON.parse(json) : json
+      if (!data?.state) throw new Error('This file isn’t a Plant Tracker backup')
+      return { data, savedAt: data.savedAt || null, plants: (data.state.plants || []).length }
     },
+    importData: async data => {
+      await replaceAll(typeof data === 'string' ? JSON.parse(data) : data)
+      if (isAuthenticated()) setTimeout(() => syncNowRef.current(), 300)
+    },
+    listSnapshots,
+    downloadSnapshot,
 
     connectGoogle: () => signIn(), // redirects to Google
     disconnectGoogle: () => {
@@ -567,7 +804,7 @@ export function StoreProvider({ children }) {
     syncNow,
 
     setCalendarReminders: async enabled => {
-      patch(s => ({ ...s, settings: { ...s.settings, calendarReminders: enabled } }))
+      setSettingsFn({ calendarReminders: enabled })
       if (enabled) {
         setTimeout(() => runCalendarSync(), 100)
       } else {
@@ -579,18 +816,12 @@ export function StoreProvider({ children }) {
 
     backfillClassifications,
 
-    refreshWeather: async () => {
-      if (!location) return
-      try {
-        const w = await fetchWeather(location)
-        setWeather(w); mergeWindDaily(w.windDaily); setWeatherError(null)
-      } catch (e) { setWeatherError(e.message) }
-    },
-  }), [patch, planImage, icons, state, location, applyPayload, syncNow, runCalendarSync, mergeWindDaily, backfillClassifications])
+    refreshWeather: () => loadWeatherRef.current(),
+  }), [patch, planImage, icons, photos, state, applyRemote, replaceAll, syncNow, runCalendarSync, backfillClassifications, setSettingsFn, logCare, logCareJobs, addLogEntry, showToast, dismissToast])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, sync, calStatus, windLog, backfill, ...api }),
-    [state, weather, weatherError, planImage, icons, sync, calStatus, windLog, backfill, api],
+    () => ({ state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, ...api }),
+    [state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

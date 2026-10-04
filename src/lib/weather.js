@@ -35,10 +35,11 @@ export async function searchCity(name) {
 // from its own archive, so wind history has no gaps even if the app wasn't
 // opened for weeks — far more reliable than only logging what we observe.
 export const WIND_HISTORY_DAYS = 30
+export const RAIN_HISTORY_DAYS = 7 // how far back an unanswered rain day is still asked about
 
 export async function fetchWeather({ lat, lon }) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m` +
+    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m` +
     `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min` +
     `,wind_speed_10m_max,wind_speed_10m_mean` +
     `&past_days=${WIND_HISTORY_DAYS}&forecast_days=2&timezone=auto`
@@ -46,9 +47,21 @@ export async function fetchWeather({ lat, lon }) {
   if (!res.ok) throw new Error('Weather request failed')
   const d = await res.json()
 
-  const yesterdayDate = formatISO(subDays(new Date(), 1), { representation: 'date' })
-  const yIdx = d.daily.time.indexOf(yesterdayDate)
-  const todayIdx = yIdx >= 0 ? yIdx + 1 : 0
+  // Dates come from the API, in the LOCATION's timezone (timezone=auto), so a
+  // device set to another zone (travel, a location set elsewhere) can't shift
+  // "yesterday" by a day and miss the rain total.
+  const deviceToday = formatISO(new Date(), { representation: 'date' })
+  const today = (d.current?.time || '').slice(0, 10) || deviceToday
+  let todayIdx = d.daily.time.indexOf(today)
+  if (todayIdx < 0) todayIdx = Math.max(0, d.daily.time.indexOf(deviceToday))
+  const yIdx = todayIdx - 1
+  const yesterdayDate = yIdx >= 0 ? d.daily.time[yIdx] : formatISO(subDays(new Date(), 1), { representation: 'date' })
+
+  // past days' rain, so a rain day is still asked about after a few days away
+  const rainDaily = {}
+  for (let i = Math.max(0, todayIdx - RAIN_HISTORY_DAYS); i < todayIdx; i++) {
+    rainDaily[d.daily.time[i]] = d.daily.precipitation_sum?.[i] ?? 0
+  }
 
   // daily wind history: { 'YYYY-MM-DD': { max, mean } }, both km/h
   const windDaily = {}
@@ -64,14 +77,17 @@ export async function fetchWeather({ lat, lon }) {
     windDaily,
     fetchedAt: Date.now(),
     temp: d.current.temperature_2m,
+    feelsLike: d.current.apparent_temperature ?? null,
     humidity: d.current.relative_humidity_2m,
     wind: d.current.wind_speed_10m,
     code: d.current.weather_code,
     tMax: d.daily.temperature_2m_max[todayIdx],
     tMin: d.daily.temperature_2m_min[todayIdx],
     rainChanceToday: d.daily.precipitation_probability_max?.[todayIdx] ?? null,
+    today,
     yesterdayDate,
     yesterdayRainMm: yIdx >= 0 ? (d.daily.precipitation_sum[yIdx] ?? 0) : 0,
+    rainDaily,
   }
 }
 

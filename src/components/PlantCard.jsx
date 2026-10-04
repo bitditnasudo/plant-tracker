@@ -1,4 +1,4 @@
-import { CloudRain } from 'lucide-react'
+import { CloudRain, Sparkles } from 'lucide-react'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS, WATER_NEED_LABELS, waterNeedLevel } from '../lib/catalog.js'
@@ -14,7 +14,7 @@ function agoLabel(iso) {
 }
 
 export function PlantCard({ plant, onOpen, onRain }) {
-  const { state, weather, icons, markWatered, markMisted } = useStore()
+  const { state, weather, icons, markWatered, markMisted, markFertilized } = useStore()
   const cat = getCatalogPlant(plant.catalogId)
   if (!cat) return null
   const lat = state.settings.location?.lat
@@ -25,9 +25,18 @@ export function PlantCard({ plant, onOpen, onRain }) {
   const customIcon = icons[plant.id]
   const wNeed = waterNeedLevel(cat)
   const wNeedLabel = `${WATER_NEED_LABELS[wNeed]} — about every ${cat.waterSummer} days in summer`
+  const name = plant.nickname || cat.name
+  const zone = plant.zoneId && state.plan.zones.find(z => z.id === plant.zoneId)
+  // where it lives, so a balcony plant left on "Inside" is visible at a glance
+  const spot = [plant.isOutside && 'Outside', zone?.name].filter(Boolean).join(' · ')
+  const open = () => onOpen(plant)
 
   return (
-    <div className="card plant-card" onClick={() => onOpen(plant)}>
+    <div
+      className="card plant-card" role="button" tabIndex={0} aria-label={`Open ${name}`}
+      onClick={open}
+      onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open() } }}
+    >
       <div className="plant-card-main">
         <div className="plant-tile-wrap">
           <div className="plant-tile">
@@ -36,7 +45,7 @@ export function PlantCard({ plant, onOpen, onRain }) {
           {askRain && (
             <button
               className="rain-bubble"
-              aria-label="Rain question"
+              aria-label={`Rain question for ${name}`}
               onClick={e => { e.stopPropagation(); onRain(plant) }}
             >
               <CloudRain size={14} />
@@ -44,7 +53,7 @@ export function PlantCard({ plant, onOpen, onRain }) {
           )}
         </div>
 
-        <h3 className="plant-name">{plant.nickname || cat.name}</h3>
+        <h3 className="plant-name">{name}</h3>
 
         {/* The species at a glance: how thirsty, and how much sun. role="img"
             is load-bearing — a bare span has role generic, where naming is
@@ -69,11 +78,18 @@ export function PlantCard({ plant, onOpen, onRain }) {
             <b>Next Water:</b>{' '}
             <span className={wLeft <= 0 ? 'due-text' : ''}>{daysLeftLabel(wLeft)}</span>
           </div>
+          {/* the same overdue count the bell shows, not a flat "Today" */}
           {mLeft !== null && mLeft <= 0 && (
-            <div className="plant-meta"><b>Needs Misting:</b> <span>Today</span></div>
+            <div className="plant-meta"><b>Mist:</b> <span className="due-text">{daysLeftLabel(mLeft)}</span></div>
           )}
           {fLeft !== null && fLeft <= 0 && (
-            <div className="plant-meta"><b>Fertilize:</b> <span className="due-text">Today</span></div>
+            <div className="plant-meta"><b>Fertilize:</b> <span className="due-text">{daysLeftLabel(fLeft)}</span></div>
+          )}
+          {spot && (
+            <div className="plant-meta plant-spot">
+              {plant.isOutside && <span className="spot-dot" aria-hidden="true" />}
+              <span>{spot}</span>
+            </div>
           )}
         </div>
       </div>
@@ -81,17 +97,26 @@ export function PlantCard({ plant, onOpen, onRain }) {
       {/* Welded to the right edge so every card's controls are in one place. */}
       <div className="plant-rail">
         <button
-          className="action-sq action-sq-water" title="Mark watered"
+          className="action-sq action-sq-water" title="Mark watered" aria-label={`Mark ${name} watered`}
           onClick={e => { e.stopPropagation(); markWatered(plant.id) }}
         >
           <WateringCan />
         </button>
         {cat.mist && (
           <button
-            className="action-sq action-sq-mist" title="Mark misted"
+            className="action-sq action-sq-mist" title="Mark misted" aria-label={`Mark ${name} misted`}
             onClick={e => { e.stopPropagation(); markMisted(plant.id) }}
           >
             <SprayBottle />
+          </button>
+        )}
+        {/* feeding is rare, so its button only appears when it's due */}
+        {fLeft !== null && fLeft <= 0 && (
+          <button
+            className="action-sq action-sq-feed" title="Mark fed" aria-label={`Mark ${name} fed`}
+            onClick={e => { e.stopPropagation(); markFertilized(plant.id) }}
+          >
+            <Sparkles size={22} />
           </button>
         )}
       </div>

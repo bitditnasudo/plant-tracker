@@ -104,13 +104,17 @@ Research-backed behavior (sources below): rain **never automatically** counts
 as a watering, because potted plants are often sheltered by eaves or their own
 foliage and pots dry faster than ground soil. Instead:
 
-1. If measurable rain (≥ 1 mm) fell yesterday at your location, every plant
-   marked **Outside** gets a **red bubble** on the dashboard.
-2. Tap it and answer whether the plant actually got wet.
-3. If yes: rain ≥ **5 mm** counts as a full watering (schedule resets as if
-   watered yesterday); lighter rain just pushes the next watering back one day.
+1. If measurable rain (≥ 1 mm) fell at your location on any day since a
+   plant's last watering (looking back up to 7 days, so a few days away from
+   the app still get asked about), every plant set to **Outside** gets a
+   **red bubble** on the dashboard. Inside/Outside is set per plant — or per
+   room, when a floor-plan zone is marked outdoors.
+2. Tap it and answer whether the plant actually got wet — one answer covers
+   every pending rain day.
+3. "Soaked" logs a watering dated to the last rain day; "light sprinkle" just
+   pushes the next watering back one day.
 
-Weather and yesterday's precipitation come from [Open-Meteo](https://open-meteo.com)
+Weather and daily precipitation come from [Open-Meteo](https://open-meteo.com)
 (free, no API key). Watering intervals switch between growing-season and
 dormant values based on the month and your hemisphere.
 
@@ -133,8 +137,10 @@ icons replace the built-in ones on the dashboard and the floor plan.
 ## Where data lives
 
 Everything is stored on-device: structured state in `localStorage`, the floor
-plan image and generated icons in IndexedDB. Use **Account → Export** for a
-JSON backup you can re-import on another device.
+plan image, generated icons and care-log photos in IndexedDB. Use
+**Account → Export** for a JSON backup. **Import** shows what the file holds
+and asks before replacing anything; an imported backup wins over every other
+device (it is re-stamped as a fresh edit), and plants not in it are removed.
 
 ## Google Drive sync (multi-device)
 
@@ -145,17 +151,30 @@ settings — syncs as one JSON file (`plant-tracker-sync.json`) inside a
 **PLANT TRACKER** folder in your Drive.
 
 How it behaves:
-- On app open (and after connecting): pulls the Drive copy if it's newer.
-- After any local change: pushes automatically ~4 s later (debounced).
-- Conflicts: last write wins by timestamp; if two devices edit at once, the
-  most recent push is what survives.
-- Google tokens last ~1 h; when one expires the app keeps working locally and
-  shows "session expired — reconnect" in Account. Reconnecting resumes sync.
+- On app open, and whenever the app comes back to the foreground: checks the
+  Drive file's version (Drive's own counter — no device clocks involved) and
+  pulls only if it changed.
+- After any local change: pushes ~4 s later, or immediately when the app is
+  hidden. Unsent changes are remembered across restarts, so an edit made just
+  before closing the app is uploaded on the next launch.
+- Conflicts: a field-level merge (`src/lib/merge.js`). Each edited field of a
+  plant carries its own timestamp, so the phone logging a watering and the
+  iPad logging a feed both survive; deletions are tombstones; the care log
+  unions entries; settings merge per key. Covered by `npm test`.
+- Status is honest: Account shows offline / waiting to upload / failed, and an
+  expired Google session shows a banner with Reconnect on every tab.
+- A sync file deleted from Drive is recreated rather than wedging sync.
+- **Daily snapshots:** once a day the sync file is copied to
+  `plant-tracker-YYYY-MM-DD.json` in the same folder; the newest 14 are kept
+  (older ones go to the Drive trash). Account → Restore a snapshot.
+- The OAuth redirect carries a random `state` that the callback verifies.
 
-**Watering reminders (Google Calendar):** with Drive connected, Account →
-"Calendar watering reminders" creates one event per plant on its next
-watering date (9:00 local) in your primary Google Calendar, with a popup
-notification on every signed-in device plus an email reminder from Google.
+**Care reminders (Google Calendar):** with Drive connected, Account →
+"Calendar reminders" creates one event per plant on its next watering date
+(and optionally misting and feeding dates) at the hour you choose, in your
+primary Google Calendar, with a popup notification on every signed-in device
+plus an email reminder from Google. Overdue plants are reminded at the next
+full hour instead of on a time that has already passed.
 Events update automatically ~5 s after anything changes the schedule
 (watering, rain answers, adding/removing plants) and are cleaned up when
 you turn the toggle off. Requires the calendar permission — if you
@@ -176,8 +195,9 @@ src/
   lib/
     catalog.js     — bundled plant catalogue (care data from open sources)
     perenual.js    — online species search (Perenual API → catalogue schema)
-    schedule.js    — watering/misting/fertilizing math + rain rules
-    weather.js     — Open-Meteo client (forecast, yesterday rain, geocoding)
+    schedule.js    — watering/misting/fertilizing math + rain rules (+ tests)
+    merge.js       — multi-device merge: field stamps, care log, import (+ tests)
+    weather.js     — Open-Meteo client (forecast, daily rain, geocoding)
     planFile.js    — PDF (pdf.js) / SVG / image → raster plan converter
     gemini.js      — icon generation (gemini-2.5-flash-image)
     idb.js         — tiny IndexedDB key-value helper for large blobs

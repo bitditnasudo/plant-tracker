@@ -664,3 +664,198 @@
 
 /* Combo rows carry two log buttons — one per chore */
 .notif-item-combo { background: var(--info-wash); border-color: var(--info-line); color: var(--info-ink); }
+
+/* ── Sheets: a visible way out ───────────────────────────────────────────── */
+.sheet { position: relative; }
+.sheet-close {
+  position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 2;
+  width: var(--tap); height: var(--tap); border-radius: 50%;
+  border: none; cursor: pointer;
+  background: var(--surface-2); color: var(--brand-deep);
+  display: flex; align-items: center; justify-content: center;
+}
+.sheet-close:hover { filter: brightness(.95); }
+/* headings and identity rows stop short of the close button */
+.sheet > h2, .sheet > .sheet-ident, .sheet > div > h2 { padding-right: 48px; }
+.sheet:focus { outline: none; }
+.confirm-body { margin-bottom: var(--sp-4); }
+.confirm-body p + p { margin-top: var(--sp-2); }
+.link-btn { background: none; border: none; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+
+/* ── Toast with Undo ─────────────────────────────────────────────────────── */
+.toast-app {
+  display: flex; align-items: center; gap: var(--sp-3);
+  white-space: normal; max-width: min(92vw, 420px);
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 8px 8px var(--sp-5);
+}
+.toast-app span { flex: 1; }
+.toast-undo {
+  border: none; cursor: pointer; flex-shrink: 0;
+  min-height: 36px; padding: 0 var(--sp-3); border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / .18); color: var(--on-dark);
+  font: inherit; font-weight: 800;
+}
+@media (min-width: 700px) { .toast-app { bottom: var(--sp-6); } }
+
+/* ── Sync trouble, on every tab ──────────────────────────────────────────── */
+.sync-banner {
+  position: fixed; z-index: 90;
+  top: calc(var(--sp-2) + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+  width: min(92vw, 520px);
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--danger-wash); border: 1px solid var(--danger-line); color: var(--danger-ink);
+  font-size: var(--fs-sm); font-weight: 600; box-shadow: var(--shadow-pop);
+}
+.sync-banner span { flex: 1; }
+
+/* ── Bell: how many, not just "some" ─────────────────────────────────────── */
+.bell-count {
+  position: absolute; top: 2px; right: 0;
+  min-width: 19px; height: 19px; padding: 0 5px; border-radius: var(--radius-pill);
+  background: var(--danger); color: #fff; border: 1.5px solid var(--surface);
+  font-size: 11px; font-weight: 800; line-height: 16px; text-align: center;
+}
+.notif-all { margin-bottom: var(--sp-2); }
+/* overdue reads differently from due-today in every tab */
+.notif-item.is-overdue { box-shadow: inset 4px 0 0 var(--danger); }
+.notif-item.is-overdue .n-sub { color: var(--danger-ink); font-weight: 700; }
+.notif-tabs button { min-height: var(--tap); }
+/* a hint that the strip scrolls when five chores are due at once */
+.notif-tabs { mask-image: linear-gradient(to right, #000 85%, transparent); }
+.notif-tabs:has(button:last-child.is-active) { mask-image: none; }
+
+/* ── Weather: skeleton at final height, stale label ──────────────────────── */
+.weather-card-link { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.weather-card-loading { min-height: 132px; display: flex; flex-direction: column; justify-content: center; gap: var(--sp-3); }
+.skel {
+  height: 14px; border-radius: 7px; width: 60%;
+  background: linear-gradient(90deg, rgb(var(--brand-rgb) / .08), rgb(var(--brand-rgb) / .16), rgb(var(--brand-rgb) / .08));
+  background-size: 200% 100%; animation: skel 1.2s ease-in-out infinite;
+}
+.skel-lg { height: 38px; width: 45%; }
+@keyframes skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wx-stale { margin-top: var(--sp-2); font-size: var(--fs-xs); opacity: .85; text-align: center; }
+
+/* ── Trip banner ─────────────────────────────────────────────────────────── */
+.trip-card {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  background: var(--info-wash); border-color: var(--info-line); color: var(--info-ink);
+  font-size: var(--fs-sm);
+}
+.trip-card .grow { flex: 1; min-width: 180px; }
+
+/* ── Dashboard groups ────────────────────────────────────────────────────── */
+.plant-group + .plant-group { margin-top: var(--sp-5); }
+.group-title {
+  font-size: var(--fs-xs); font-weight: 800; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted-on-bg); margin: 0 2px var(--sp-2);
+}
+.group-title .sub { font-weight: 700; opacity: .8; margin-left: 4px; }
+
+/* Phones: pin only the header and the search row; the weather card scrolls
+   away between them, so the list gets most of the screen (the whole block
+   used to take 346 of 812px). Wider screens keep the whole block pinned. */
+@media (max-width: 699px) {
+  .dash-top { display: contents; }
+  .dash-head, .dash-tools {
+    position: sticky; z-index: 55; background: var(--bg);
+    margin-inline: calc(-1 * var(--sp-4)); padding-inline: var(--sp-4);
+  }
+  .dash-head {
+    top: 0; z-index: 56;
+    margin-top: calc(-1 * (var(--sp-4) + env(safe-area-inset-top, 0px)));
+    padding-top: calc(var(--sp-2) + env(safe-area-inset-top, 0px));
+    padding-bottom: var(--sp-2);
+    height: calc(62px + env(safe-area-inset-top, 0px));
+    box-sizing: border-box;
+  }
+  .dash-wx { padding-top: var(--sp-2); }
+  .dash-tools {
+    top: calc(62px + env(safe-area-inset-top, 0px));
+    padding-top: var(--sp-2);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--sp-3);
+  }
+  .dash-tools .search-bar { margin-bottom: 0; }
+  .dash-tools .section-head { margin: var(--sp-2) 2px 0; padding-bottom: var(--sp-2); }
+}
+
+/* ── Plant card extras ───────────────────────────────────────────────────── */
+.plant-card:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.plant-spot { display: flex; align-items: center; gap: 6px; }
+.spot-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--info-ink); flex-shrink: 0; }
+.action-sq-feed {
+  color: var(--brand-deep);
+  background: linear-gradient(155deg, #FFFFFF 0%, #EAF6EE 55%, #D3EEDC 100%);
+  border: 1px solid rgb(var(--brand-rgb) / .30);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.95), 0 5px 12px rgb(var(--brand-rgb) / .18);
+}
+
+/* ── Detail sheet: care history, advanced ────────────────────────────────── */
+.care-log { list-style: none; margin: var(--sp-3) 0 var(--sp-2); padding: 0; }
+.care-log-item {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-2) 0; border-bottom: 1px solid var(--border);
+}
+.care-log-item:last-child { border-bottom: none; }
+.care-log-item small { display: block; font-size: var(--fs-xs); color: var(--muted); }
+.care-log-text { font-size: var(--fs-sm); font-weight: 600; overflow-wrap: anywhere; }
+.care-log-icon {
+  width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--brand-wash); color: var(--brand);
+}
+.care-log-water .care-log-icon, .care-log-rain .care-log-icon { background: var(--info-wash); color: var(--info-ink); }
+.care-log-photo { display: block; margin-top: var(--sp-2); max-width: 100%; max-height: 260px; border-radius: var(--radius-sm); }
+.care-log-del {
+  width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0;
+  background: none; color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+}
+.care-log-del:hover { background: var(--danger-wash); color: var(--danger-ink); }
+.advanced {
+  margin: var(--sp-2) 0 var(--sp-4);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 0 var(--sp-3);
+}
+.advanced summary {
+  display: flex; align-items: center; gap: var(--sp-2);
+  min-height: var(--tap); cursor: pointer;
+  font-size: var(--fs-sm); font-weight: 700; color: var(--brand-deep);
+}
+.advanced[open] { padding-bottom: var(--sp-3); }
+
+/* ── Add plant: catalogue header stays in reach ──────────────────────────── */
+.catalog-head {
+  position: sticky; top: calc(-1 * var(--sp-5)); z-index: 3;
+  background: var(--bg-2); margin: 0 calc(-1 * var(--sp-4)); padding: var(--sp-2) var(--sp-4) 0;
+}
+.catalog-item { font: inherit; color: inherit; display: block; width: 100%; }
+.chip-row-fade { mask-image: linear-gradient(to right, #000 88%, transparent); }
+.seg-wrap { flex-wrap: wrap; }
+.seg-wrap button { flex: 1 0 auto; }
+
+/* ── Bottom nav: fixed slots, so switching tabs moves nothing ─────────────── */
+@media (max-width: 699px) {
+  .bottom-nav .nav-item { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
+  .nav-pill { flex-direction: column; gap: 3px; padding: 5px var(--sp-3); }
+}
+
+/* ── Account ─────────────────────────────────────────────────────────────── */
+.inline-actions .search-bar-inline, .inline-actions input { min-width: 0; flex: 1; }
+.inline-actions > .btn { flex-shrink: 0; }
+.row-actions-divided { padding-bottom: var(--sp-3); border-bottom: 1px solid var(--border); margin-bottom: var(--sp-1); }
+.reminder-opts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--sp-3); margin-top: var(--sp-2); }
+@media (max-width: 420px) { .reminder-opts { grid-template-columns: 1fr; } }
+.snapshot-row { width: 100%; background: none; border-left: none; border-right: none; border-top: none; font: inherit; color: inherit; text-align: left; }
+.profile-card .field label { text-align: center; }
+
+/* ── Onboarding: Back + forward, same place on every step ─────────────────── */
+.ob-nav { display: flex; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-5); }
+.ob-nav .grow { flex: 1; }
+.ob-back { flex-shrink: 0; }
+.ob-nav-col { margin-top: auto; padding-top: var(--sp-5); }

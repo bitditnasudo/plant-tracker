@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, addDays, parseISO, formatISO, subDays } from 'date-fns'
+import { differenceInCalendarDays, addDays, parseISO, formatISO, subDays, format } from 'date-fns'
 import { getCatalogPlant } from './catalog.js'
 
 // Rain rules (see README): rain never auto-waters a plant — pots under eaves or
@@ -66,7 +66,6 @@ export const DORMANT_CAP_MULTIPLIER = 2 // evaporation collapses out of season
  * callers don't have to thread it through every signature. */
 let windLog = {}
 export function setWindLog(log) { windLog = log || {} }
-export function getWindLog() { return windLog }
 
 // Average wind (km/h) over the days since `sinceISO`, exclusive of that day.
 // Returns null when we have no usable data — callers then skip the adjustment.
@@ -79,7 +78,8 @@ export function avgWindSince(sinceISO) {
   const pick = d => windLog[d]?.[WIND_DAILY_METRIC]
   let vals = days.filter(d => d > from && d <= today).map(pick).filter(v => typeof v === 'number')
   // watered today (empty window) or history doesn't reach back that far
-  if (!vals.length) vals = days.slice(-3).map(pick).filter(v => typeof v === 'number')
+  // (measured days only — the log also holds today's and tomorrow's forecast)
+  if (!vals.length) vals = days.filter(d => d < today).slice(-3).map(pick).filter(v => typeof v === 'number')
   if (!vals.length) return null
   return vals.reduce((a, b) => a + b, 0) / vals.length
 }
@@ -237,33 +237,50 @@ export function daysLeftLabel(days) {
   return `${days} days`
 }
 
-// Should the red rain bubble show for this plant?
-// Plant set to Outside + measurable rain yesterday + not yet answered for that date.
+// Rain days this plant hasn't been asked about yet: measurable rain after its
+// last watering and after its last rain answer, within the weather history
+// (RAIN_HISTORY_DAYS). Opening the app after a few days away still asks about
+// the rain that fell meanwhile, not just yesterday's.
 // Where the plant actually sits is the user's call — the species' `outdoor` flag is
 // only a hint, so an "indoor" species parked on the balcony still gets asked.
+export function pendingRain(plant, weather) {
+  if (!weather || !plant.isOutside) return null
+  const daily = weather.rainDaily || { [weather.yesterdayDate]: weather.yesterdayRainMm }
+  const since = [plant.lastWatered, plant.rainAnsweredFor].filter(Boolean).sort().pop() || ''
+  const days = Object.entries(daily)
+    .filter(([day, mm]) => day > since && (!weather.today || day < weather.today) && mm >= RAIN_ASK_MM)
+    .sort(([a], [b]) => a.localeCompare(b))
+  if (!days.length) return null
+  return {
+    days: days.map(([day]) => day),
+    firstDay: days[0][0],
+    lastDay: days[days.length - 1][0],
+    totalMm: days.reduce((t, [, mm]) => t + mm, 0),
+  }
+}
+
+// Should the red rain bubble show for this plant?
 export function needsRainAnswer(plant, weather) {
-  if (!weather || weather.yesterdayRainMm < RAIN_ASK_MM) return false
-  if (!plant.isOutside) return false
-  // watered on or after the rain day — the rain can't add anything
-  if (plant.lastWatered && plant.lastWatered >= weather.yesterdayDate) return false
-  return plant.rainAnsweredFor !== weather.yesterdayDate
+  return !!pendingRain(plant, weather)
 }
 
 // Apply the user's rain answer. Returns the updated plant object.
 // SOAKED is a real watering event — identical to tapping the watering can,
-// just dated to the rain day — regardless of what the rain gauge reported.
+// just dated to the (last) rain day — regardless of what the rain gauge reported.
 // The mm figure only drives which option we *suggest*, never what a
 // confirmation does; a forecast-grid total says little about what actually
-// reached a pot on an exposed balcony.
+// reached a pot on an exposed balcony. One answer covers every pending day.
 export function applyRainAnswer(plant, weather, outcome) {
   // tolerate the old boolean callers
   const o = outcome === true ? RAIN_OUTCOME.SOAKED
     : outcome === false ? RAIN_OUTCOME.DRY
     : outcome
 
-  const rainDay = weather.yesterdayDate ||
+  const pending = pendingRain(plant, weather)
+  const yesterday = weather.yesterdayDate ||
     formatISO(subDays(new Date(), 1), { representation: 'date' })
-  const updated = { ...plant, rainAnsweredFor: rainDay, rainDelay: false }
+  const rainDay = pending?.lastDay || yesterday
+  const updated = { rainAnsweredFor: yesterday > rainDay ? yesterday : rainDay, rainDelay: false }
 
   if (o === RAIN_OUTCOME.SOAKED) {
     updated.lastWatered = rainDay      // the field waterDaysLeft() reads
@@ -272,4 +289,12 @@ export function applyRainAnswer(plant, weather, outcome) {
     updated.rainDelay = true           // partial top-up: nudge one day
   }
   return updated
+}
+
+// "yesterday" / "since Tue 30 Sep" — for the rain question's copy.
+export function rainWhen(pending, weather) {
+  if (!pending) return ''
+  if (pending.days.length === 1 && pending.firstDay === weather?.yesterdayDate) return 'yesterday'
+  if (pending.days.length === 1) return `on ${format(parseISO(pending.firstDay), 'EEE d MMM')}`
+  return `since ${format(parseISO(pending.firstDay), 'EEE d MMM')}`
 }

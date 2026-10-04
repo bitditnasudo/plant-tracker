@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  ChevronRight, MapPin, LocateFixed, Search, Upload, Loader2,
+  ChevronRight, ChevronLeft, MapPin, LocateFixed, Search, Upload, Loader2,
   AppWindow, Square, Ruler, CloudRain, Plus, Check, Cloud,
 } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
@@ -29,6 +29,22 @@ export default function Onboarding() {
   const steps = hasPlan ? ['welcome', 'location', 'plan', 'north', 'guide'] : ['welcome', 'location', 'plan', 'guide']
   const current = steps[Math.min(step, steps.length - 1)]
   const next = () => setStep(s => s + 1)
+  const back = () => setStep(s => Math.max(0, s - 1))
+
+  // Same place on every step: Back on the left, the step's way forward on the
+  // right. "Skip" is a quiet button — the step's real action is the bright one.
+  const Nav = ({ done, skipLabel = 'Skip for now', label = 'Continue', onNext = next }) => (
+    <div className="ob-nav">
+      {step > 0 && (
+        <button className="btn btn-secondary ob-back" onClick={back}>
+          <ChevronLeft size={16} /> Back
+        </button>
+      )}
+      <button className={`btn grow ${done ? 'btn-primary' : 'btn-secondary'}`} onClick={onNext}>
+        {done ? label : skipLabel} <ChevronRight size={16} />
+      </button>
+    </div>
+  )
 
   const findCity = async () => {
     if (!cityQuery.trim()) return
@@ -104,7 +120,7 @@ export default function Onboarding() {
                 onChange={e => setProfile({ name: e.target.value })}
               />
             </div>
-            <div className="ob-cta">
+            <div className="ob-nav-col">
               <button className="btn btn-primary btn-block ob-btn" onClick={next}>
                 Let’s go <ChevronRight size={16} />
               </button>
@@ -127,7 +143,7 @@ export default function Onboarding() {
                 Your location powers the weather card and the rain check for outdoor plants. It never leaves this device.
               </p>
             </div>
-            <button className="btn btn-soft btn-block" onClick={useGPS} disabled={busy}>
+            <button className={`btn btn-block ${state.settings.location ? 'btn-soft' : 'btn-primary'}`} onClick={useGPS} disabled={busy}>
               {busy ? <Loader2 size={16} className="spin" /> : <LocateFixed size={16} />} Use my current position
             </button>
             <p className="muted center ob-or">or</p>
@@ -158,9 +174,7 @@ export default function Onboarding() {
               </p>
             )}
             {locError && <p className="center note-danger">{locError}</p>}
-            <button className="btn btn-primary btn-block ob-cta ob-cta-gap" onClick={next}>
-              {state.settings.location ? 'Continue' : 'Skip for now'} <ChevronRight size={16} />
-            </button>
+            <Nav done={!!state.settings.location} />
           </div>
         )}
 
@@ -179,16 +193,14 @@ export default function Onboarding() {
                 <p className="ok-line"><Check size={14} /> Plan loaded</p>
               </div>
             ) : (
-              <label className="btn btn-soft btn-block as-file">
+              <label className="btn btn-primary btn-block as-file">
                 {uploading ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
                 {uploading ? 'Processing…' : 'Choose file'}
                 <input type="file" accept=".pdf,.svg,image/*" hidden onChange={onFile} disabled={uploading} />
               </label>
             )}
             {uploadError && <p className="center note-danger">{uploadError}</p>}
-            <button className="btn btn-primary btn-block ob-cta ob-cta-gap" onClick={next}>
-              {hasPlan ? 'Continue' : 'Skip — add it later in the Plan tab'} <ChevronRight size={16} />
-            </button>
+            <Nav done={hasPlan} skipLabel="Skip — add it later" />
           </div>
         )}
 
@@ -212,9 +224,7 @@ export default function Onboarding() {
               type="range" min="0" max="359" step="1" value={state.plan.northDeg} className="range"
               onChange={e => setPlan({ northDeg: +e.target.value })}
             />
-            <button className="btn btn-primary btn-block ob-cta ob-cta-gap" onClick={next}>
-              Continue <ChevronRight size={16} />
-            </button>
+            <Nav done />
           </div>
         )}
 
@@ -227,7 +237,7 @@ export default function Onboarding() {
             <div className="card">
               <div className="list-row">
                 <div className="row-icon"><Plus size={18} /></div>
-                <div className="grow">Tap the <b>＋ button</b> to add plants from the catalogue.</div>
+                <div className="grow">Tap <b>Add plant</b> to add plants from the catalogue. Say whether each one lives <b>inside or outside</b> — outside plants get rain questions.</div>
               </div>
               <div className="list-row">
                 <div className="row-icon"><AppWindow size={18} /></div>
@@ -246,9 +256,7 @@ export default function Onboarding() {
                 <div className="grow">After a rainy day, outdoor plants show a <b>red bubble</b> — tell the app if they got wet and the schedule adapts.</div>
               </div>
             </div>
-            <button className="btn btn-primary btn-block ob-cta ob-cta-gap" onClick={() => setSettings({ onboardingDone: true })}>
-              Start tracking <ChevronRight size={16} />
-            </button>
+            <Nav done label="Start tracking" onNext={() => setSettings({ onboardingDone: true })} />
           </div>
         )}
       </div>
