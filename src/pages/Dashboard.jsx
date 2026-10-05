@@ -9,6 +9,19 @@ import { PlantDetailModal } from '../components/PlantDetailModal.jsx'
 import { Avatar, Sprout, WateringCan, SprayBottle } from '../components/PlantIcons.jsx'
 import { WeatherCard, TripCard, useTripNeeds } from '../components/DashWidgets.jsx'
 
+// Desktop layout (the sidebar breakpoint): the list tools move into the header.
+const WIDE = '(min-width: 700px)'
+function useWide() {
+  const [wide, setWide] = useState(() => window.matchMedia(WIDE).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(WIDE)
+    const on = () => setWide(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return wide
+}
+
 const dueLabel = left => left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'
 
 const SORTS = {
@@ -29,6 +42,7 @@ export default function Dashboard({ onAdd }) {
   // other half is done too, instead of hopping to the Water or Feed tab.
   const [comboPins, setComboPins] = useState(() => new Set())
   const bellRef = useRef(null)
+  const wide = useWide()
   const lat = state.settings.location?.lat
 
   // what's actually due today, straight from the schedule
@@ -180,6 +194,27 @@ export default function Dashboard({ onAdd }) {
   const freshDetail = detailPlant && state.plants.find(p => p.id === detailPlant.id)
   const SortIcon = SORTS[sort].Icon
 
+  const tools = (
+    <>
+      <h2 className="tools-title">My Plants</h2>
+      <div className="search-bar">
+        <Search size={17} />
+        <input placeholder="Search" aria-label="Search plants" value={query} onChange={e => setQuery(e.target.value)} />
+      </div>
+      <div className="section-head-aside">
+        <span className="sub">{state.plants.length} total</span>
+        <button
+          className="chip"
+          aria-label={`Sorted ${SORTS[sort].label} — tap for ${SORTS[SORTS[sort].next].label}`}
+          onClick={() => setSettings({ plantSort: SORTS[sort].next })}
+        >
+          <SortIcon size={14} />
+          {SORTS[sort].label}
+        </button>
+      </div>
+    </>
+  )
+
   return (
     <div className="main-content main-content-dashboard">
       {/* Phones pin only the header and the search row; the weather card
@@ -191,6 +226,8 @@ export default function Dashboard({ onAdd }) {
           <small>Welcome,</small>
           <b>{state.profile.name || 'Plant lover'}!</b>
         </div>
+        {/* desktop: title, search and sort share the header row */}
+        {wide && <div className="head-tools">{tools}</div>}
         <div className="popover-wrap" ref={bellRef}>
           <button
             className="icon-btn" aria-label={totalDue ? `Today's tasks: ${totalDue}` : "Today's tasks"}
@@ -304,27 +341,7 @@ export default function Dashboard({ onAdd }) {
         <TripCard />
       </div>
 
-      <div className="dash-tools">
-        <div className="search-bar">
-          <Search size={17} />
-          <input placeholder="Search" aria-label="Search plants" value={query} onChange={e => setQuery(e.target.value)} />
-        </div>
-
-        <div className="section-head">
-          <h2>My Plants</h2>
-          <div className="section-head-aside">
-            <span className="sub">{state.plants.length} total</span>
-            <button
-              className="chip"
-              aria-label={`Sorted ${SORTS[sort].label} — tap for ${SORTS[SORTS[sort].next].label}`}
-              onClick={() => setSettings({ plantSort: SORTS[sort].next })}
-            >
-              <SortIcon size={14} />
-              {SORTS[sort].label}
-            </button>
-          </div>
-        </div>
-      </div>
+      {!wide && <div className="dash-tools">{tools}</div>}
       </div>
 
       {plants.length === 0 ? (

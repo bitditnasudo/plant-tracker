@@ -913,3 +913,56 @@
 .trip-card-docked .trip-toggle { gap: var(--sp-2); }
 .trip-card-docked .trip-actions { padding-left: 0; }
 .trip-card-docked .trip-actions .muted { min-width: 0; font-size: var(--fs-xs); }
+
+/* ── List tools: their own row on phones, inside the header on desktop ──── */
+.dash-tools { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: var(--sp-3); }
+.dash-tools .search-bar { grid-column: 1 / -1; margin-bottom: var(--sp-2); }
+.dash-tools .tools-title { grid-row: 2; font-size: var(--fs-xl); margin: 0 2px var(--sp-2); }
+.dash-tools .section-head-aside { grid-row: 2; margin-bottom: var(--sp-2); }
+.section-head-aside .sub { font-size: var(--fs-sm); color: var(--muted-on-bg); font-weight: 600; }
+
+@media (min-width: 700px) {
+  /* one pinned row: hello · My Plants + search + sort · bell */
+  .dash-head {
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--sp-4);
+    gap: var(--sp-4);
+  }
+  .dash-head .hello { flex: 0 0 auto; }
+  .head-tools { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); }
+  .head-tools .tools-title { font-size: var(--fs-xl); white-space: nowrap; margin: 0; }
+  .head-tools .search-bar { flex: 1; min-width: 120px; margin: 0; padding-block: 8px; }
+  .head-tools .section-head-aside { margin: 0; }
+}
+/* tighter desktop windows: the count and the title give way to the search */
+@media (min-width: 700px) and (max-width: 1050px) {
+  .head-tools .sub { display: none; }
+}
+@media (min-width: 700px) and (max-width: 900px) {
+  .head-tools .tools-title { display: none; }
+}
+
+/* ── Desktop: compact plant cards, so three rows fit a laptop-height window ──
+   In a three-column grid each card's text column is too narrow to sit beside
+   the 92px tile, so the schedule drops under it and the card grows to ~230px.
+   On desktop the tile shrinks to 64px with the name and badges beside it on
+   one line each, the care buttons step down to 40px, and the card loses
+   ~60px — enough for a third full row of plants in a ~670px-tall window. */
+@media (min-width: 700px) {
+  .plant-card { --plant-card-pad: 14px; padding: 14px; padding-right: 0; }
+  .plant-card .plant-meta { line-height: 1.35; }
+  .dash-head { margin-bottom: var(--sp-3); }
+  .plant-card .action-sq { width: 40px; height: 40px; }
+  .plant-card .action-sq svg { width: 30px; height: 30px; }
+  .plant-card .plant-rail { padding: var(--sp-2) 6px; gap: 6px; }
+  @container (max-width: 355px) {
+    .plant-card-main { grid-template-columns: 64px minmax(0, 1fr); row-gap: var(--sp-1); }
+    .plant-card .plant-tile { width: 64px; height: 64px; border-radius: 16px; }
+    .plant-tile-wrap { grid-row: 1 / span 2; }
+    .plant-name { font-size: var(--fs-lg); -webkit-line-clamp: 1; align-self: end; }
+    .plant-habits { align-self: start; }
+    .plant-card .care-badge { width: 30px; height: 30px; }
+    .plant-card .care-badge svg { width: 22px; height: 22px; }
+    .plant-sched { margin-top: var(--sp-2); }
+  }
+}
