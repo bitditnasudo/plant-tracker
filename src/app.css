@@ -232,7 +232,8 @@
 .popover-notifs::before {
   background: linear-gradient(var(--surface), var(--surface)), var(--bg-2);
 }
-.popover-notifs { width: min(360px, calc(100vw - 24px)); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
+/* wide enough for all five chore tabs side by side — none hides off the edge */
+.popover-notifs { width: min(440px, calc(100vw - 24px)); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
 
 .notif-head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -723,9 +724,14 @@
 .notif-item.is-overdue { box-shadow: inset 4px 0 0 var(--danger); }
 .notif-item.is-overdue .n-sub { color: var(--danger-ink); font-weight: 700; }
 .notif-tabs button { min-height: var(--tap); }
-/* a hint that the strip scrolls when five chores are due at once */
-.notif-tabs { mask-image: linear-gradient(to right, #000 85%, transparent); }
-.notif-tabs:has(button:last-child.is-active) { mask-image: none; }
+/* every tab visible: they share the row, and wrap rather than scroll if a
+   very narrow phone can't fit them all */
+.notif-tabs { flex-wrap: wrap; overflow: visible; }
+.notif-tabs button { flex: 1 1 0; min-width: 52px; padding: 0 4px; gap: 4px; }
+/* phones: the count sits under the label so five tabs fit on one row */
+@media (max-width: 480px) {
+  .notif-tabs button { flex-direction: column; gap: 1px; padding: 3px 2px; line-height: 1.1; }
+}
 
 /* ── Weather: skeleton at final height, stale label ──────────────────────── */
 .weather-card-link { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
@@ -745,8 +751,21 @@
   display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
   background: var(--info-wash); border-color: var(--info-line); color: var(--info-ink);
   font-size: var(--fs-sm);
+  padding-block: var(--sp-2);
 }
-.trip-card .grow { flex: 1; min-width: 180px; }
+.trip-card .grow { flex: 1; min-width: 0; }
+.trip-toggle {
+  flex: 1 1 100%; display: flex; align-items: center; gap: var(--sp-3);
+  min-height: var(--tap); padding: 0; border: none; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.trip-toggle:disabled { cursor: default; }
+.trip-actions {
+  flex: 1 1 100%; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-2) 0 var(--sp-1) 30px; border-top: 1px solid var(--info-line);
+}
+.trip-actions .muted { flex: 1; min-width: 160px; color: inherit; opacity: .85; }
+.group-link { margin-left: var(--sp-3); font-size: var(--fs-xs); text-transform: none; letter-spacing: 0; color: var(--brand); }
 
 /* ── Dashboard groups ────────────────────────────────────────────────────── */
 .plant-group + .plant-group { margin-top: var(--sp-5); }
@@ -842,7 +861,8 @@
 /* ── Bottom nav: fixed slots, so switching tabs moves nothing ─────────────── */
 @media (max-width: 699px) {
   .bottom-nav .nav-item { flex: 1 1 0; min-width: 0; padding-inline: 2px; }
-  .nav-pill { flex-direction: column; gap: 3px; padding: 5px var(--sp-3); }
+  /* the pill fills its slot, so every active tab is the same width */
+  .nav-pill { flex-direction: column; gap: 3px; padding: 5px 4px; width: 100%; max-width: 86px; }
 }
 
 /* ── Account ─────────────────────────────────────────────────────────────── */

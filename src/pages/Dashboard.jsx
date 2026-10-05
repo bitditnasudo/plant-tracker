@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plane, Plus } from 'lucide-react'
+import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plane, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { differenceInCalendarDays, format, parseISO, formatISO } from 'date-fns'
 import { useStore, WEATHER_STALE_MS } from '../lib/store.jsx'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, pendingRain, rainWhen, tripNeed } from '../lib/schedule.js'
 import { describeWeatherCode } from '../lib/weather.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { PlantCard } from '../components/PlantCard.jsx'
@@ -86,11 +86,11 @@ function WeatherCard({ rainCount }) {
   )
 }
 
-// While a trip is planned: what will come due while you're away, so it can be
-// watered before leaving. While away: a quiet reminder of when you're back.
-function TripBanner({ lat }) {
-  const { state, setSettings, logCare } = useStore()
-  const trip = state.settings.trip
+// A one-line card while a trip is planned; tapping it filters the plant list
+// below to the plants that need water before you leave (each card is tagged).
+// While away: a quiet reminder of when you're back.
+function TripCard({ trip, needs, open, onToggle }) {
+  const { setSettings, logCare } = useStore()
   const today = formatISO(new Date(), { representation: 'date' })
   const over = trip && trip.to < today
 
@@ -99,34 +99,43 @@ function TripBanner({ lat }) {
   }, [over, setSettings])
 
   if (!trip || over) return null
-  const away = trip.from <= today
-  const daysToReturn = differenceInCalendarDays(parseISO(trip.to), new Date())
   const fmt = d => format(parseISO(d), 'EEE d MMM')
 
-  if (away) {
+  if (trip.from <= today) {
     return (
       <div className="card trip-card">
         <Plane size={18} />
-        <div className="grow">Away until <b>{fmt(trip.to)}</b> — schedules carry on; anything due shows when you’re back.</div>
+        <div className="grow">Away until <b>{fmt(trip.to)}</b></div>
       </div>
     )
   }
 
-  const dueWhileAway = state.plants.filter(p => getCatalogPlant(p.catalogId) && waterDaysLeft(p, lat) <= daysToReturn)
+  const ids = [...needs.keys()]
+  const daysToGo = differenceInCalendarDays(parseISO(trip.from), new Date())
+  const head = ids.length === 0
+    ? <>Nothing needs water before your trip on <b>{fmt(trip.from)}</b></>
+    : <>Before your trip on <b>{fmt(trip.from)}</b>, water <b>{ids.length} plant{ids.length === 1 ? '' : 's'}</b></>
+
   return (
-    <div className="card trip-card">
-      <Plane size={18} />
-      <div className="grow">
-        Trip <b>{fmt(trip.from)} – {fmt(trip.to)}</b>:{' '}
-        {dueWhileAway.length === 0
-          ? 'nothing comes due while you’re away.'
-          : <>{dueWhileAway.length} plant{dueWhileAway.length === 1 ? '' : 's'} will need water before you’re back —{' '}
-            {dueWhileAway.map(p => p.nickname || getCatalogPlant(p.catalogId)?.name).join(', ')}.</>}
-      </div>
-      {dueWhileAway.length > 0 && (
-        <button className="btn btn-sm btn-primary" onClick={() => logCare(dueWhileAway.map(p => p.id), 'water')}>
-          <WateringCan className="art-sm" /> Water all now
-        </button>
+    <div className={`card trip-card${open ? ' is-open' : ''}`}>
+      <button type="button" className="trip-toggle" onClick={onToggle} disabled={!ids.length} aria-expanded={open}>
+        <Plane size={18} />
+        <span className="grow">{head}</span>
+        {ids.length > 0 && (open ? <ChevronUp size={18} /> : <ChevronDown size={18} />)}
+      </button>
+      {open && ids.length > 0 && (
+        <div className="trip-actions">
+          <span className="muted">
+            {daysToGo <= 1
+              ? 'Shown below.'
+              : `Shown below — water ${ids.length === 1 ? 'it' : 'them'} the day before you leave (${fmt(formatISO(parseISO(trip.from).getTime() - 864e5, { representation: 'date' }))}).`}
+          </span>
+          {daysToGo <= 1 && (
+            <button className="btn btn-sm btn-primary" onClick={() => logCare(ids, 'water')}>
+              <WateringCan className="art-sm" /> Water all now
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -148,6 +157,8 @@ export default function Dashboard({ onAdd }) {
   const [showNotifs, setShowNotifs] = useState(false)
   const sort = SORTS[state.settings.plantSort] ? state.settings.plantSort : 'due'
   const [notifTab, setNotifTab] = useState('water')
+  const [tripOpen, setTripOpen] = useState(false)
+  const trip = state.settings.trip
   // Combo plants that have had one half logged. They stay in Combo until the
   // other half is done too, instead of hopping to the Water or Feed tab.
   const [comboPins, setComboPins] = useState(() => new Set())
@@ -205,6 +216,19 @@ export default function Dashboard({ onAdd }) {
       urgency,
     }
   }, [state.plants, lat, weather, comboPins])
+
+  // which plants need a watering right before the trip (computed, never stored)
+  const tripNeeds = useMemo(() => {
+    const m = new Map()
+    if (!trip) return m
+    for (const p of state.plants) {
+      if (!getCatalogPlant(p.catalogId)) continue
+      const n = tripNeed(p, lat, trip)
+      if (n) m.set(p.id, n)
+    }
+    return m
+  }, [state.plants, lat, trip])
+  const tripFilter = tripOpen && tripNeeds.size > 0
 
   const notifTabs = useMemo(() => [
     { key: 'combo', label: 'Combo', items: dueCombo, Art: null,        type: null,    verb: 'combo' },
@@ -271,6 +295,7 @@ export default function Dashboard({ onAdd }) {
     // locale-aware so accents and numbers order the way a reader expects
     const byName = (a, b) => name(a).localeCompare(name(b), undefined, { sensitivity: 'base', numeric: true })
     return [...state.plants]
+      .filter(p => !tripFilter || tripNeeds.has(p.id))
       .filter(p => {
         if (!q) return true
         const cat = getCatalogPlant(p.catalogId)
@@ -282,10 +307,12 @@ export default function Dashboard({ onAdd }) {
         if (sort === 'due') return (urgency.get(a.id) ?? 99) - (urgency.get(b.id) ?? 99) || byName(a, b)
         return sort === 'za' ? -byName(a, b) : byName(a, b)
       })
-  }, [state.plants, query, sort, urgency])
+  }, [state.plants, query, sort, urgency, tripFilter, tripNeeds])
 
   // "Due first" splits the list: what needs you today, then everything else
-  const groups = sort === 'due'
+  const groups = tripFilter
+    ? [{ key: 'trip', title: 'Water before your trip', items: plants }]
+    : sort === 'due'
     ? [
         { key: 'today', title: 'Needs care today', items: plants.filter(p => (urgency.get(p.id) ?? 99) <= 0) },
         { key: 'later', title: 'Later', items: plants.filter(p => (urgency.get(p.id) ?? 99) > 0) },
@@ -418,7 +445,7 @@ export default function Dashboard({ onAdd }) {
 
       <div className="dash-wx">
         <WeatherCard rainCount={dueRain.length} />
-        <TripBanner lat={lat} />
+        <TripCard trip={trip} needs={tripNeeds} open={tripFilter} onToggle={() => setTripOpen(v => !v)} />
       </div>
 
       <div className="dash-tools">
@@ -456,10 +483,15 @@ export default function Dashboard({ onAdd }) {
       ) : (
         groups.map(g => (
           <section key={g.key} className="plant-group">
-            {g.title && <h3 className="group-title">{g.title} <span className="sub">{g.items.length}</span></h3>}
+            {g.title && (
+              <h3 className="group-title">
+                {g.title} <span className="sub">{g.items.length}</span>
+                {g.key === 'trip' && <button type="button" className="link-btn group-link" onClick={() => setTripOpen(false)}>Show all plants</button>}
+              </h3>
+            )}
             <div className="card-grid">
               {g.items.map(p => (
-                <PlantCard key={p.id} plant={p} onOpen={setDetailPlant} onRain={setRainPlant} />
+                <PlantCard key={p.id} plant={p} onOpen={setDetailPlant} onRain={setRainPlant} trip={tripNeeds.get(p.id)} />
               ))}
             </div>
           </section>

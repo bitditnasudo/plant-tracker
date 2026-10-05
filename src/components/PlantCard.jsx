@@ -13,7 +13,7 @@ function agoLabel(iso) {
   return `${d} days ago`
 }
 
-export function PlantCard({ plant, onOpen, onRain }) {
+export function PlantCard({ plant, onOpen, onRain, trip }) {
   const { state, weather, icons, markWatered, markMisted, markFertilized } = useStore()
   const cat = getCatalogPlant(plant.catalogId)
   if (!cat) return null
@@ -84,6 +84,13 @@ export function PlantCard({ plant, onOpen, onRain }) {
           )}
           {fLeft !== null && fLeft <= 0 && (
             <div className="plant-meta"><b>Fertilize:</b> <span className="due-text">{daysLeftLabel(fLeft)}</span></div>
+          )}
+          {trip && (
+            <div className="plant-meta">
+              <span className={`tag ${trip.lasts ? 'tag-info' : 'tag-warn'}`} title={trip.lasts ? '' : 'One watering won’t last until you’re back — ask someone to water it'}>
+                {trip.lasts ? 'Water before trip' : 'Water before trip · won’t last'}
+              </span>
+            </div>
           )}
           {spot && (
             <div className="plant-meta plant-spot">

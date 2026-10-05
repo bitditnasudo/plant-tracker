@@ -298,3 +298,20 @@ export function rainWhen(pending, weather) {
   if (pending.days.length === 1) return `on ${format(parseISO(pending.firstDay), 'EEE d MMM')}`
   return `since ${format(parseISO(pending.firstDay), 'EEE d MMM')}`
 }
+
+// Does this plant need a watering right before a trip? Assumes you keep
+// watering on schedule until you leave, so only a watering that would land
+// while you're away (departure day through the day before you're back)
+// counts. Returns null when it doesn't, else { lasts }: whether one watering
+// on departure day carries it until you're home.
+export function tripNeed(plant, latitude, trip, now = new Date()) {
+  if (!trip?.from || !trip?.to) return null
+  const from = parseISO(trip.from)
+  const to = parseISO(trip.to)
+  const interval = waterIntervalDays(plant, latitude)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  let due = addDays(today, waterDaysLeft(plant, latitude))
+  while (due < from) due = addDays(due, interval)
+  if (due >= to) return null
+  return { lasts: interval >= differenceInCalendarDays(to, from) }
+}

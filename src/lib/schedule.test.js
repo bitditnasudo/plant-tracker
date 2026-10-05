@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   setWindLog, avgWindSince, windTierFor, windAdjustment, MAX_WIND_CUT,
   isGrowingSeason, potCappedBase, waterIntervalDays, waterDaysLeft,
-  pendingRain, needsRainAnswer, applyRainAnswer, RAIN_OUTCOME,
+  pendingRain, needsRainAnswer, applyRainAnswer, RAIN_OUTCOME, tripNeed,
 } from './schedule.js'
 import { reminderStart } from './calendarSync.js'
 
@@ -128,5 +128,18 @@ describe('calendar reminder time', () => {
     expect(d.getDate()).toBe(15)
     expect(d.getHours()).toBe(13)
     expect(d.getMinutes()).toBe(0)
+  })
+})
+
+describe('trip', () => {
+  const trip = { from: '2026-07-27', to: '2026-07-30' } // 12 days out, 3 days away
+  it('skips plants you will water on schedule before leaving and that last the trip', () => {
+    // monstera summer 7d, watered today: due 22nd (before leaving), then 29th → during trip
+    expect(tripNeed(plant(), 40, trip)).toEqual({ lasts: true })
+    // watered 3 days ago: due 19th, 26th, then 2 Aug → after you're back
+    expect(tripNeed(plant({ lastWatered: '2026-07-12' }), 40, trip)).toBeNull()
+  })
+  it('flags a plant whose interval is shorter than the trip', () => {
+    expect(tripNeed(plant({ intervalOverride: 2 }), 40, trip)).toEqual({ lasts: false })
   })
 })
