@@ -9,6 +9,7 @@ import PlanView from './pages/PlanView.jsx'
 import Account from './pages/Account.jsx'
 import AuthCallback from './pages/AuthCallback.jsx'
 import { AddPlantModal } from './components/AddPlantModal.jsx'
+import { WeatherCard, TripCard } from './components/DashWidgets.jsx'
 
 function BottomNav({ onFab }) {
   const location = useLocation()
@@ -51,6 +52,11 @@ function BottomNav({ onFab }) {
       <button className="fab" aria-label="Add plant" onClick={onFab}>
         <Plus size={20} /><span className="fab-label">Add plant</span>
       </button>
+      {/* desktop only: weather and trip docked under the menu, on every tab */}
+      <div className="nav-widgets">
+        <WeatherCard docked />
+        <TripCard docked />
+      </div>
     </nav>
   )
 }

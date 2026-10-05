@@ -136,6 +136,9 @@ export function StoreProvider({ children }) {
   const [icons, setIcons] = useState({})             // plantId -> dataURL (Gemini-generated)
   const [photos, setPhotos] = useState({})           // photoId -> dataURL (care-log photos)
   const [toast, setToast] = useState(null)           // {id, text, undo?}
+  // UI only, never saved: My Plants filtered to "water before trip" (set from
+  // the trip card, which on desktop lives in the sidebar)
+  const [tripOpen, setTripOpen] = useState(false)
   const [windLog, setWindLogState] = useState(() => {  // { 'YYYY-MM-DD': {max, mean} }
     const l = loadWindLog()
     setWindLog(l) // register with the schedule module before first render
@@ -820,8 +823,8 @@ export function StoreProvider({ children }) {
   }), [patch, planImage, icons, photos, state, applyRemote, replaceAll, syncNow, runCalendarSync, backfillClassifications, setSettingsFn, logCare, logCareJobs, addLogEntry, showToast, dismissToast])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, ...api }),
-    [state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, api],
+    () => ({ state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, tripOpen, setTripOpen, ...api }),
+    [state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, tripOpen, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

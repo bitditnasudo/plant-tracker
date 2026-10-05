@@ -1,145 +1,13 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, CloudRain, Wind, Droplets, Thermometer, MapPin, Sun, Cloud, CloudSun, Snowflake, Zap, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plane, Plus, ChevronDown, ChevronUp } from 'lucide-react'
-import { differenceInCalendarDays, format, parseISO, formatISO } from 'date-fns'
-import { useStore, WEATHER_STALE_MS } from '../lib/store.jsx'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, pendingRain, rainWhen, tripNeed } from '../lib/schedule.js'
-import { describeWeatherCode } from '../lib/weather.js'
+import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus } from 'lucide-react'
+import { useStore } from '../lib/store.jsx'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { PlantCard } from '../components/PlantCard.jsx'
 import { RainModal } from '../components/RainModal.jsx'
 import { PlantDetailModal } from '../components/PlantDetailModal.jsx'
 import { Avatar, Sprout, WateringCan, SprayBottle } from '../components/PlantIcons.jsx'
-import { useNavigate } from 'react-router-dom'
-
-const WX_ICONS = { sun: Sun, 'cloud-sun': CloudSun, cloud: Cloud, rain: CloudRain, snow: Snowflake, storm: Zap }
-
-const timeLabel = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-
-function WeatherCard({ rainCount }) {
-  const { state, weather, weatherError } = useStore()
-  const navigate = useNavigate()
-  const loc = state.settings.location
-
-  if (!loc) {
-    return (
-      <button type="button" className="card weather-card weather-card-link" onClick={() => navigate('/account')}>
-        <div className="wx-row">
-          <MapPin size={22} />
-          <div>
-            <div className="wx-title">Set your location</div>
-            <div className="wx-desc">Enable weather and rain tracking in the Account tab</div>
-          </div>
-        </div>
-      </button>
-    )
-  }
-  if (!weather) {
-    // a skeleton at the card's final height, so nothing below jumps when it loads
-    return (
-      <div className="card weather-card weather-card-loading" aria-busy="true">
-        {weatherError
-          ? <div className="wx-desc">Weather unavailable: {weatherError}</div>
-          : <><div className="skel skel-lg" /><div className="skel" /><span className="sr-only">Loading weather…</span></>}
-      </div>
-    )
-  }
-
-  const [desc, iconKey] = describeWeatherCode(weather.code)
-  const WxIcon = WX_ICONS[iconKey] || Cloud
-  const stale = Date.now() - weather.fetchedAt > WEATHER_STALE_MS
-
-  return (
-    <div className="card weather-card">
-      <div className="wx-row">
-        <WxIcon size={46} strokeWidth={1.6} />
-        <div className="wx-main">
-          <div className="wx-temp">{Math.round(weather.temp)}°</div>
-          <div className="wx-desc">{desc} · {loc.label}</div>
-        </div>
-        <div className="wx-hilo">
-          H {Math.round(weather.tMax)}° · L {Math.round(weather.tMin)}°
-        </div>
-      </div>
-      <div className="wx-stats">
-        <span className="wx-stat"><Droplets size={13} /> {weather.humidity}%</span>
-        <span className="wx-stat"><Wind size={13} /> {Math.round(weather.wind)} km/h</span>
-        {weather.rainChanceToday !== null && <span className="wx-stat"><CloudRain size={13} /> {weather.rainChanceToday}% today</span>}
-        {weather.feelsLike !== null && weather.feelsLike !== undefined && (
-          <span className="wx-stat"><Thermometer size={13} /> feels {Math.round(weather.feelsLike)}°</span>
-        )}
-      </div>
-      {(weatherError || stale) && (
-        <div className="wx-stale">
-          {weatherError ? 'Couldn’t refresh' : 'Not refreshed lately'} — showing weather from {timeLabel(weather.fetchedAt)}
-        </div>
-      )}
-      {rainCount > 0 && (
-        <div className="rain-note">
-          <CloudRain size={16} />
-          <span>
-            {weather.yesterdayRainMm >= 1 && <>It rained <b>{weather.yesterdayRainMm.toFixed(1)} mm</b> yesterday. </>}
-            {rainCount === 1 ? 'One outdoor plant has' : `${rainCount} outdoor plants have`} a rain question — tap the red bubble.
-          </span>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// A one-line card while a trip is planned; tapping it filters the plant list
-// below to the plants that need water before you leave (each card is tagged).
-// While away: a quiet reminder of when you're back.
-function TripCard({ trip, needs, open, onToggle }) {
-  const { setSettings, logCare } = useStore()
-  const today = formatISO(new Date(), { representation: 'date' })
-  const over = trip && trip.to < today
-
-  useEffect(() => {
-    if (over) setSettings({ trip: null })
-  }, [over, setSettings])
-
-  if (!trip || over) return null
-  const fmt = d => format(parseISO(d), 'EEE d MMM')
-
-  if (trip.from <= today) {
-    return (
-      <div className="card trip-card">
-        <Plane size={18} />
-        <div className="grow">Away until <b>{fmt(trip.to)}</b></div>
-      </div>
-    )
-  }
-
-  const ids = [...needs.keys()]
-  const daysToGo = differenceInCalendarDays(parseISO(trip.from), new Date())
-  const head = ids.length === 0
-    ? <>Nothing needs water before your trip on <b>{fmt(trip.from)}</b></>
-    : <>Before your trip on <b>{fmt(trip.from)}</b>, water <b>{ids.length} plant{ids.length === 1 ? '' : 's'}</b></>
-
-  return (
-    <div className={`card trip-card${open ? ' is-open' : ''}`}>
-      <button type="button" className="trip-toggle" onClick={onToggle} disabled={!ids.length} aria-expanded={open}>
-        <Plane size={18} />
-        <span className="grow">{head}</span>
-        {ids.length > 0 && (open ? <ChevronUp size={18} /> : <ChevronDown size={18} />)}
-      </button>
-      {open && ids.length > 0 && (
-        <div className="trip-actions">
-          <span className="muted">
-            {daysToGo <= 1
-              ? 'Shown below.'
-              : `Shown below — water ${ids.length === 1 ? 'it' : 'them'} the day before you leave (${fmt(formatISO(parseISO(trip.from).getTime() - 864e5, { representation: 'date' }))}).`}
-          </span>
-          {daysToGo <= 1 && (
-            <button className="btn btn-sm btn-primary" onClick={() => logCare(ids, 'water')}>
-              <WateringCan className="art-sm" /> Water all now
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
+import { WeatherCard, TripCard, useTripNeeds } from '../components/DashWidgets.jsx'
 
 const dueLabel = left => left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'
 
@@ -150,15 +18,13 @@ const SORTS = {
 }
 
 export default function Dashboard({ onAdd }) {
-  const { state, weather, setSettings, logCare, logCareJobs } = useStore()
+  const { state, weather, setSettings, logCare, logCareJobs, tripOpen, setTripOpen } = useStore()
   const [query, setQuery] = useState('')
   const [rainPlant, setRainPlant] = useState(null)
   const [detailPlant, setDetailPlant] = useState(null)
   const [showNotifs, setShowNotifs] = useState(false)
   const sort = SORTS[state.settings.plantSort] ? state.settings.plantSort : 'due'
   const [notifTab, setNotifTab] = useState('water')
-  const [tripOpen, setTripOpen] = useState(false)
-  const trip = state.settings.trip
   // Combo plants that have had one half logged. They stay in Combo until the
   // other half is done too, instead of hopping to the Water or Feed tab.
   const [comboPins, setComboPins] = useState(() => new Set())
@@ -217,17 +83,7 @@ export default function Dashboard({ onAdd }) {
     }
   }, [state.plants, lat, weather, comboPins])
 
-  // which plants need a watering right before the trip (computed, never stored)
-  const tripNeeds = useMemo(() => {
-    const m = new Map()
-    if (!trip) return m
-    for (const p of state.plants) {
-      if (!getCatalogPlant(p.catalogId)) continue
-      const n = tripNeed(p, lat, trip)
-      if (n) m.set(p.id, n)
-    }
-    return m
-  }, [state.plants, lat, trip])
+  const tripNeeds = useTripNeeds()
   const tripFilter = tripOpen && tripNeeds.size > 0
 
   const notifTabs = useMemo(() => [
@@ -444,8 +300,8 @@ export default function Dashboard({ onAdd }) {
       </div>
 
       <div className="dash-wx">
-        <WeatherCard rainCount={dueRain.length} />
-        <TripCard trip={trip} needs={tripNeeds} open={tripFilter} onToggle={() => setTripOpen(v => !v)} />
+        <WeatherCard />
+        <TripCard />
       </div>
 
       <div className="dash-tools">
