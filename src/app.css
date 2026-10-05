@@ -640,22 +640,14 @@
    without creating a scroll container. */
 .main-content-dashboard { overflow: visible; overflow-x: clip; }
 
-/* Header, weather, search and the "My Plants" row stay put; only the plant
-   cards scroll. The block bleeds over .main-content's padding so the cards
-   pass under a full-width band, and re-owns the status-bar inset it covers. */
+/* The pinned bands bleed over .main-content's padding so the cards pass
+   under a full-width band, and re-own the status-bar inset they cover. They
+   are solid, not frosted: a backdrop-filter becomes the backdrop root for the
+   notification .popover inside, which then turns see-through over the cards. */
 .dash-top {
   --top-pad-x: var(--sp-4);
   --top-pad-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
-  position: sticky; top: 0; z-index: 55;
-  margin: calc(-1 * var(--top-pad-top)) calc(-1 * var(--top-pad-x)) var(--sp-3);
-  padding: var(--top-pad-top) var(--top-pad-x) 0;
-  /* Solid, not frosted: a backdrop-filter here becomes the backdrop root for
-     the notification .popover inside it, and the popover's own blur then has
-     nothing to blur — it turns see-through over the cards. */
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
 }
-.dash-top .section-head { margin: var(--sp-4) 2px 0; padding-bottom: var(--sp-3); }
 @media (min-width: 700px) {
   .dash-top {
     --top-pad-x: var(--sp-6);
@@ -775,33 +767,43 @@
 }
 .group-title .sub { font-weight: 700; opacity: .8; margin-left: 4px; }
 
-/* Phones: pin only the header and the search row; the weather card scrolls
-   away between them, so the list gets most of the screen (the whole block
-   used to take 346 of 812px). Wider screens keep the whole block pinned. */
-@media (max-width: 699px) {
-  .dash-top { display: contents; }
-  .dash-head, .dash-tools {
-    position: sticky; z-index: 55; background: var(--bg);
-    margin-inline: calc(-1 * var(--sp-4)); padding-inline: var(--sp-4);
-  }
-  .dash-head {
-    top: 0; z-index: 56;
-    margin-top: calc(-1 * (var(--sp-4) + env(safe-area-inset-top, 0px)));
-    padding-top: calc(var(--sp-2) + env(safe-area-inset-top, 0px));
-    padding-bottom: var(--sp-2);
-    height: calc(62px + env(safe-area-inset-top, 0px));
-    box-sizing: border-box;
-  }
-  .dash-wx { padding-top: var(--sp-2); }
-  .dash-tools {
-    top: calc(62px + env(safe-area-inset-top, 0px));
-    padding-top: var(--sp-2);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: var(--sp-3);
-  }
-  .dash-tools .search-bar { margin-bottom: 0; }
-  .dash-tools .section-head { margin: var(--sp-2) 2px 0; padding-bottom: var(--sp-2); }
+/* Only the header and the search row stay pinned; the weather card (and trip
+   card) scroll away between them, so the list keeps most of the screen. The
+   whole block used to be pinned, which left one row of cards on a short
+   desktop window and took 346 of 812px on a phone. The --top-pad-* values
+   come from .dash-top above (display: contents still passes them down). */
+.dash-top {
+  display: contents;
+  --head-pad-top: calc(var(--sp-2) + env(safe-area-inset-top, 0px));
+  --head-h: calc(46px + 2 * var(--sp-2) + env(safe-area-inset-top, 0px));
 }
+@media (min-width: 700px) {
+  .dash-top {
+    --head-pad-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
+    --head-h: calc(46px + var(--sp-4) + var(--sp-2) + env(safe-area-inset-top, 0px));
+  }
+}
+.dash-head, .dash-tools {
+  position: sticky; z-index: 55; background: var(--bg);
+  margin-inline: calc(-1 * var(--top-pad-x)); padding-inline: var(--top-pad-x);
+}
+.dash-head {
+  top: 0; z-index: 56;
+  margin-top: calc(-1 * var(--top-pad-top));
+  padding-top: var(--head-pad-top);
+  padding-bottom: var(--sp-2);
+  height: var(--head-h);
+  box-sizing: border-box;
+}
+.dash-wx { padding-top: var(--sp-2); }
+.dash-tools {
+  top: var(--head-h);
+  padding-top: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--sp-3);
+}
+.dash-tools .search-bar { margin-bottom: 0; }
+.dash-tools .section-head { margin: var(--sp-2) 2px 0; padding-bottom: var(--sp-2); }
 
 /* ── Plant card extras ───────────────────────────────────────────────────── */
 .plant-card:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
