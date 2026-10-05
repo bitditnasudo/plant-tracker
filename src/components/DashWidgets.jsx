@@ -102,10 +102,14 @@ export function WeatherCard({ docked = false }) {
       {rainCount > 0 && (
         <div className="rain-note">
           <CloudRain size={16} />
-          <span>
-            {weather.yesterdayRainMm >= 1 && <>It rained <b>{weather.yesterdayRainMm.toFixed(1)} mm</b> yesterday. </>}
-            {rainCount === 1 ? 'One outdoor plant has' : `${rainCount} outdoor plants have`} a rain question — tap the red bubble.
-          </span>
+          {docked ? (
+            <span><b>{rainCount}</b> rain question{rainCount === 1 ? '' : 's'} — tap the red bubble</span>
+          ) : (
+            <span>
+              {weather.yesterdayRainMm >= 1 && <>It rained <b>{weather.yesterdayRainMm.toFixed(1)} mm</b> yesterday. </>}
+              {rainCount === 1 ? 'One outdoor plant has' : `${rainCount} outdoor plants have`} a rain question — tap the red bubble.
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -143,9 +147,11 @@ export function TripCard({ docked = false }) {
   const ids = [...needs.keys()]
   const open = tripOpen && ids.length > 0
   const daysToGo = differenceInCalendarDays(parseISO(trip.from), new Date())
-  const head = ids.length === 0
-    ? <>Nothing needs water before your trip on <b>{fmt(trip.from)}</b></>
-    : <>Before your trip on <b>{fmt(trip.from)}</b>, water <b>{ids.length} plant{ids.length === 1 ? '' : 's'}</b></>
+  const head = docked
+    ? <>Trip <b>{fmt(trip.from)}</b><br />{ids.length === 0 ? 'nothing to water first' : <>water <b>{ids.length}</b> before</>}</>
+    : ids.length === 0
+      ? <>Nothing needs water before your trip on <b>{fmt(trip.from)}</b></>
+      : <>Before your trip on <b>{fmt(trip.from)}</b>, water <b>{ids.length} plant{ids.length === 1 ? '' : 's'}</b></>
   const toggle = () => {
     if (docked) navigate('/')
     setTripOpen(!open)
