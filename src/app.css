@@ -966,3 +966,20 @@
     .plant-sched { margin-top: var(--sp-2); }
   }
 }
+
+/* ── Desktop: the greeting sits in the sidebar, under the brand ────────── */
+.nav-user { display: none; }
+@media (min-width: 700px) {
+  .nav-user {
+    order: -2; display: flex; align-items: center; gap: var(--sp-3);
+    margin: 0 0 var(--sp-5); padding: 0 10px;
+    background: none; border: none; cursor: pointer; text-align: left; font: inherit; color: inherit;
+  }
+  .nav-user .hello { min-width: 0; line-height: 1.15; }
+  .nav-user .hello small { display: block; font-size: var(--fs-sm); color: var(--muted-on-bg); font-weight: 500; }
+  .nav-user .hello b {
+    display: block; font-family: var(--font-display); font-size: var(--fs-lg); color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .nav-brand { padding-bottom: var(--sp-4); }
+}

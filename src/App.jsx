@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import { Home, Map, User, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { StoreProvider, useStore } from './lib/store.jsx'
-import { Sprout } from './components/PlantIcons.jsx'
+import { Sprout, Avatar } from './components/PlantIcons.jsx'
 import Onboarding from './pages/Onboarding.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import PlanView from './pages/PlanView.jsx'
@@ -12,6 +12,7 @@ import { AddPlantModal } from './components/AddPlantModal.jsx'
 import { WeatherCard, TripCard } from './components/DashWidgets.jsx'
 
 function BottomNav({ onFab }) {
+  const { state } = useStore()
   const location = useLocation()
   const navigate = useNavigate()
   const path = location.pathname
@@ -29,6 +30,14 @@ function BottomNav({ onFab }) {
         <div className="nav-brand-icon"><Sprout /></div>
         <span>Plant Tracker</span>
       </div>
+      {/* sidebar-only greeting; on phones it stays in the dashboard header */}
+      <button type="button" className="nav-user" onClick={() => navigate('/account')} aria-label="Your account">
+        <span className="avatar"><Avatar /></span>
+        <span className="hello">
+          <small>Welcome,</small>
+          <b>{state.profile.name || 'Plant lover'}!</b>
+        </span>
+      </button>
       {items.map(({ icon: Icon, label, to }) => {
         const active = path === to
         return (

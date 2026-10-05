@@ -221,11 +221,16 @@ export default function Dashboard({ onAdd }) {
           scrolls away between them. Wider screens pin the whole block. */}
       <div className="dash-top">
       <div className="header dash-head">
-        <div className="avatar"><Avatar /></div>
-        <div className="hello">
-          <small>Welcome,</small>
-          <b>{state.profile.name || 'Plant lover'}!</b>
-        </div>
+        {/* desktop: the greeting lives in the sidebar */}
+        {!wide && (
+          <>
+            <div className="avatar"><Avatar /></div>
+            <div className="hello">
+              <small>Welcome,</small>
+              <b>{state.profile.name || 'Plant lover'}!</b>
+            </div>
+          </>
+        )}
         {/* desktop: title, search and sort share the header row */}
         {wide && <div className="head-tools">{tools}</div>}
         <div className="popover-wrap" ref={bellRef}>
