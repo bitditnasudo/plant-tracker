@@ -5,7 +5,7 @@ import { fetchWeather, WIND_HISTORY_DAYS } from './weather.js'
 import { applyRainAnswer, setWindLog } from './schedule.js'
 import { setCustomCatalog, getCatalogPlant } from './catalog.js'
 import {
-  isAuthenticated, signIn, clearToken as clearGoogleToken,
+  isAuthenticated, signIn, signOut as signOutGoogle,
   findSyncFile, createSyncFile, updateSyncFile, downloadSyncFile, getSyncFileInfo,
   snapshotIfDue, listSnapshots, downloadSnapshot, AuthExpiredError, NotFoundError,
 } from './googleDrive.js'
@@ -792,7 +792,7 @@ export function StoreProvider({ children }) {
 
     connectGoogle: () => signIn(), // redirects to Google
     disconnectGoogle: () => {
-      clearGoogleToken()
+      signOutGoogle()
       clearTimeout(syncTimer.current)
       setSync(s => ({ ...s, connected: false, syncing: false, error: null }))
     },

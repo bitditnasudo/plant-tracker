@@ -168,6 +168,14 @@ How it behaves:
   `plant-tracker-YYYY-MM-DD.json` in the same folder; the newest 14 are kept
   (older ones go to the Drive trash). Account → Restore a snapshot.
 - The OAuth redirect carries a random `state` that the callback verifies.
+- **Sign-in renews itself.** Sign-in uses the authorization-code flow with
+  offline access, so Google returns a refresh token; when the hour-long access
+  token runs out the app quietly gets a new one. The code/refresh swap needs
+  the OAuth client secret, held only by the `api/google-token.js` Vercel
+  function — set `GOOGLE_CLIENT_SECRET` in the Vercel project (and in
+  `.env.local` for `npm run dev`). Without it the app falls back to the old
+  one-hour token. If the Google Cloud consent screen is still in **Testing**,
+  Google expires refresh tokens after 7 days; publish it to avoid that.
 
 **Care reminders (Google Calendar):** with Drive connected, Account →
 "Calendar reminders" creates one event per plant on its next watering date

@@ -4,7 +4,7 @@
 // settings.calendarCare also misting and feeding — on its next due date,
 // tagged with extendedProperties so we can update/remove our own events only.
 import { addDays, formatISO } from 'date-fns'
-import { getStoredToken, clearToken, AuthExpiredError } from './googleDrive.js'
+import { authFetch } from './googleDrive.js'
 import { getCatalogPlant } from './catalog.js'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft } from './schedule.js'
 
@@ -40,13 +40,10 @@ export class CalendarScopeError extends Error {
 }
 
 async function calFetch(url, options = {}) {
-  const token = getStoredToken()
-  if (!token) throw new AuthExpiredError()
-  const res = await fetch(url, {
+  const res = await authFetch(url, {
     ...options,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
-  if (res.status === 401) { clearToken(); throw new AuthExpiredError() }
   if (res.status === 403) {
     // distinguish "API not enabled in the Cloud project" from a missing scope
     const e = await res.json().catch(() => ({}))

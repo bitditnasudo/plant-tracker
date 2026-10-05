@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -14,11 +14,30 @@ const commit = (() => {
   try { return execSync('git rev-parse --short HEAD').toString().trim() } catch { return 'dev' }
 })()
 
-export default defineConfig({
-  plugins: [react()],
+// `npm run dev` has no Vercel functions, so serve /api/google-token from the
+// same module, with the server-only env from .env.local.
+function devApi(env) {
+  return {
+    name: 'dev-api',
+    configureServer(server) {
+      server.middlewares.use('/api/google-token', async (req, res) => {
+        let raw = ''
+        for await (const chunk of req) raw += chunk
+        const { exchange } = await server.ssrLoadModule('/api/google-token.js')
+        const { status, data } = await exchange(JSON.parse(raw || '{}'), env)
+        res.statusCode = status
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(data))
+      })
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), devApi(loadEnv(mode, process.cwd(), ''))],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_COMMIT__: JSON.stringify(commit),
     __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
   },
-})
+}))
