@@ -135,6 +135,9 @@ export function StoreProvider({ children }) {
   const [planImage, setPlanImage] = useState(null)   // dataURL
   const [icons, setIcons] = useState({})             // plantId -> dataURL (Gemini-generated)
   const [photos, setPhotos] = useState({})           // photoId -> dataURL (care-log photos)
+  // 3D apartment from the lightmap project: glb as a dataURL, light grid as a JSON string.
+  // Its small metadata lives in state.plan.model3d, so it syncs and merges with the plan.
+  const [model, setModel] = useState({ glb: null, light: null })
   const [toast, setToast] = useState(null)           // {id, text, undo?}
   // UI only, never saved: My Plants filtered to "water before trip" (set from
   // the trip card, which on desktop lives in the sidebar)
@@ -161,7 +164,7 @@ export function StoreProvider({ children }) {
   const syncTimer = useRef(null)
   const syncNowRef = useRef(() => {})
   const latest = useRef({})          // freshest state/blobs for payload building
-  latest.current = { state, planImage, icons, photos }
+  latest.current = { state, planImage, icons, photos, model }
 
   // persist small state
   useEffect(() => {
@@ -196,6 +199,8 @@ export function StoreProvider({ children }) {
     ;(async () => {
       try {
         const img = await idbGet('plan:image')
+        const mGlb = (await idbGet('model:glb')) || null
+        const mLight = (await idbGet('model:light')) || null
         const keys = await idbKeys()
         const iconMap = {}
         const photoMap = {}
@@ -206,9 +211,10 @@ export function StoreProvider({ children }) {
         }
         // the boot load is not an edit: set everything in one tick (one
         // render) and keep it from marking the device dirty
-        if (alive && (img || Object.keys(iconMap).length || Object.keys(photoMap).length)) {
+        if (alive && (img || mGlb || Object.keys(iconMap).length || Object.keys(photoMap).length)) {
           skipDirty.current += 1
           if (img) setPlanImage(img)
+          if (mGlb) setModel({ glb: mGlb, light: mLight })
           setIcons(iconMap)
           setPhotos(photoMap)
         }
@@ -254,9 +260,13 @@ export function StoreProvider({ children }) {
   /* ── Google Drive sync ─────────────────────────────────────────────── */
 
   // Write blobs to IndexedDB, dropping ones nothing references any more.
-  const writeBlobs = useCallback(async ({ planImage: img, icons: iconMap = {}, photos: photoMap = {} }) => {
+  const writeBlobs = useCallback(async ({ planImage: img, icons: iconMap = {}, photos: photoMap = {}, model: mdl = null }) => {
     if (img) await idbSet('plan:image', img)
     else { try { await idbDelete('plan:image') } catch { /* ignore */ } }
+    for (const [key, val] of [['model:glb', mdl?.glb], ['model:light', mdl?.light]]) {
+      if (val) await idbSet(key, val)
+      else { try { await idbDelete(key) } catch { /* ignore */ } }
+    }
     for (const [id, url] of Object.entries(iconMap)) await idbSet(`icon:${id}`, url)
     for (const [id, url] of Object.entries(photoMap)) await idbSet(`photo:${id}`, url)
     try {
@@ -282,6 +292,7 @@ export function StoreProvider({ children }) {
     })
     setCustomCatalog(merged.customCatalog || [])
     setPlanImage(blobs.planImage || null)
+    setModel(blobs.model?.glb ? blobs.model : { glb: null, light: null })
     setIcons(blobs.icons || {})
     setPhotos(blobs.photos || {})
   }, [writeBlobs])
@@ -292,7 +303,7 @@ export function StoreProvider({ children }) {
   const replaceAll = useCallback(async data => {
     if (!data?.state) throw new Error('Invalid data file')
     const prepared = prepareImport(data.state, latest.current.state)
-    const blobs = { planImage: data.blobs?.planImage || null, icons: data.blobs?.icons || {}, photos: data.blobs?.photos || {} }
+    const blobs = { planImage: data.blobs?.planImage || null, icons: data.blobs?.icons || {}, photos: data.blobs?.photos || {}, model: data.blobs?.model || null }
     await writeBlobs(blobs)
     setState({
       ...DEFAULT_STATE, ...prepared,
@@ -302,6 +313,7 @@ export function StoreProvider({ children }) {
     })
     setCustomCatalog(prepared.customCatalog || [])
     setPlanImage(blobs.planImage)
+    setModel(blobs.model?.glb ? blobs.model : { glb: null, light: null })
     setIcons(blobs.icons)
     setPhotos(blobs.photos)
   }, [writeBlobs])
@@ -312,8 +324,11 @@ export function StoreProvider({ children }) {
     let planImg = latest.current.planImage
     let iconMap = latest.current.icons
     let photoMap = latest.current.photos
+    let mdl = latest.current.model
     try {
       planImg = (await idbGet('plan:image')) || planImg || null
+      const glb = await idbGet('model:glb')
+      if (glb) mdl = { glb, light: (await idbGet('model:light')) || null }
       const ic = {}
       const ph = {}
       for (const k of await idbKeys()) {
@@ -324,7 +339,7 @@ export function StoreProvider({ children }) {
       if (Object.keys(ic).length || Object.keys(iconMap).length === 0) iconMap = ic
       if (Object.keys(ph).length || Object.keys(photoMap).length === 0) photoMap = ph
     } catch { /* fall back to in-memory copies */ }
-    return { planImage: planImg || null, icons: iconMap, photos: photoMap }
+    return { planImage: planImg || null, icons: iconMap, photos: photoMap, model: mdl?.glb ? mdl : null }
   }, [])
 
   const syncNow = useCallback(async () => {
@@ -388,13 +403,19 @@ export function StoreProvider({ children }) {
             const url = local.photos[id] || rb.photos?.[id]
             if (url) photos[id] = url
           }
-          const blobs = { planImage, icons, photos }
+          // the 3D model rides with the plan: same winner as the floor-plan image
+          const remoteModel = rb.model?.glb ? rb.model : null
+          const localModel = local.model?.glb ? local.model : null
+          const model = !merged.plan?.model3d ? null
+            : planFromLocal ? (localModel || remoteModel) : (remoteModel || localModel)
+          const blobs = { planImage, icons, photos, model }
           await applyRemote(merged, blobs)
 
           const sameMap = (a = {}, b = {}) =>
             Object.keys(a).length === Object.keys(b || {}).length && Object.keys(a).every(k => a[k] === b[k])
           const contributed = differsFromRemote(merged, remote.state) ||
-            planImage !== remotePlan || !sameMap(icons, rb.icons) || !sameMap(photos, rb.photos)
+            planImage !== remotePlan || !sameMap(icons, rb.icons) || !sameMap(photos, rb.photos) ||
+            (model?.glb || null) !== (remoteModel?.glb || null) || (model?.light || null) !== (remoteModel?.light || null)
 
           if (contributed) {
             const payload = { savedAt: nowIso(), version: APP_VERSION, state: merged, blobs }
@@ -451,7 +472,7 @@ export function StoreProvider({ children }) {
     clearTimeout(syncTimer.current)
     syncTimer.current = setTimeout(() => syncNowRef.current(), 4000)
     return () => clearTimeout(syncTimer.current)
-  }, [state, planImage, icons, photos])
+  }, [state, planImage, icons, photos, model])
 
   // pull once on startup when already connected (this also pushes edits left
   // dirty by a session that was closed before its push went out)
@@ -767,7 +788,19 @@ export function StoreProvider({ children }) {
     clearPlan: async () => {
       try { await idbDelete('plan:image') } catch { /* ignore */ }
       setPlanImage(null)
-      patch(s => ({ ...s, plan: { ...DEFAULT_STATE.plan, updatedAt: nowIso() } }))
+      patch(s => ({ ...s, plan: { ...DEFAULT_STATE.plan, model3d: s.plan.model3d, updatedAt: nowIso() } }))
+    },
+    // 3D model: meta from parseLightmapExport(), glb as a dataURL, light grid as a JSON string
+    importModel3d: async ({ meta, glb, light }) => {
+      await idbSet('model:glb', glb)
+      if (light) await idbSet('model:light', light); else { try { await idbDelete('model:light') } catch { /* ignore */ } }
+      setModel({ glb, light: light || null })
+      patch(s => ({ ...s, plan: { ...s.plan, model3d: { ...meta, importedAt: nowIso() }, updatedAt: nowIso() } }))
+    },
+    removeModel3d: async () => {
+      for (const k of ['model:glb', 'model:light']) { try { await idbDelete(k) } catch { /* ignore */ } }
+      setModel({ glb: null, light: null })
+      patch(s => { const { model3d: _, ...plan } = s.plan; return { ...s, plan: { ...plan, updatedAt: nowIso() } } })
     },
     saveIcon: async (plantId, dataUrl) => {
       await idbSet(`icon:${plantId}`, dataUrl)
@@ -777,7 +810,7 @@ export function StoreProvider({ children }) {
     },
 
     exportData: async () => {
-      const blobs = { planImage, icons, photos }
+      const blobs = { planImage, icons, photos, model: model.glb ? model : null }
       return JSON.stringify({ version: APP_VERSION, savedAt: nowIso(), state, blobs }, null, 2)
     },
     // parse + summarise a backup for the confirm step, without applying it
@@ -820,11 +853,11 @@ export function StoreProvider({ children }) {
     backfillClassifications,
 
     refreshWeather: () => loadWeatherRef.current(),
-  }), [patch, planImage, icons, photos, state, applyRemote, replaceAll, syncNow, runCalendarSync, backfillClassifications, setSettingsFn, logCare, logCareJobs, addLogEntry, showToast, dismissToast])
+  }), [patch, planImage, icons, photos, model, state, applyRemote, replaceAll, syncNow, runCalendarSync, backfillClassifications, setSettingsFn, logCare, logCareJobs, addLogEntry, showToast, dismissToast])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, tripOpen, setTripOpen, ...api }),
-    [state, weather, weatherError, planImage, icons, photos, sync, calStatus, windLog, backfill, toast, tripOpen, api],
+    () => ({ state, weather, weatherError, planImage, icons, photos, model, sync, calStatus, windLog, backfill, toast, tripOpen, setTripOpen, ...api }),
+    [state, weather, weatherError, planImage, icons, photos, model, sync, calStatus, windLog, backfill, toast, tripOpen, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

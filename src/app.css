@@ -1006,3 +1006,23 @@
   .nav-pill { padding-block: 8px; }
   .wx-desc-docked { margin-top: 4px; }
 }
+
+/* ── 3D plan ─────────────────────────────────────────────────────────────── */
+.plan-dim { flex: 0 0 auto; }
+.plan-dim button { padding: var(--sp-1) var(--sp-3); min-height: 32px; }
+.plan3d-wrap { background: var(--surface); }
+.plan3d-host { position: absolute; inset: 0; }
+.plan3d-host canvas { display: block; touch-action: none; }
+.plan3d-labels { position: absolute; inset: 0; pointer-events: none; }
+.plan3d-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--brand); }
+.plant3d-label {
+  display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  padding: 2px 6px 2px 8px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow-card);
+  font-size: 11px; color: var(--text); pointer-events: auto; cursor: pointer;
+}
+.plant3d-label .tag { font-size: 10px; padding: 0 5px; }
+.plant3d-label.is-selected { outline: 2px solid var(--brand); }
+.plan3d-selected { margin-top: var(--sp-3); padding: var(--sp-3); }
+.plan3d-selected-head { display: flex; align-items: center; gap: var(--sp-2); }
+.plan3d-selected-head .muted { flex: 1; font-size: var(--fs-sm); }

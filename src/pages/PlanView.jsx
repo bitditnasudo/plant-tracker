@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Upload, AppWindow, Square, Ruler, Eraser, Compass, RefreshCw, Loader2 } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { fileToPlanImage } from '../lib/planFile.js'
@@ -7,6 +7,22 @@ import { waterDaysLeft, daysLeftLabel } from '../lib/schedule.js'
 import { PlantIcon } from '../components/PlantIcons.jsx'
 import { PlantDetailModal } from '../components/PlantDetailModal.jsx'
 import { Sheet, ConfirmSheet } from '../components/Sheet.jsx'
+
+// three.js only loads when the 3D view is opened
+const Plan3D = lazy(() => import('../components/Plan3D.jsx'))
+const DIM_KEY = 'plan:dim' // per device: which view the Plan tab opens in
+
+function DimToggle({ dim, setDim }) {
+  return (
+    <div className="seg plan-dim" role="radiogroup" aria-label="Plan view">
+      {['2d', '3d'].map(d => (
+        <button key={d} role="radio" aria-checked={dim === d} className={dim === d ? 'is-active' : ''} onClick={() => setDim(d)}>
+          {d.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 
@@ -112,6 +128,8 @@ export default function PlanView() {
   const [scaleSheet, setScaleSheet] = useState(null) // {pixels}
   const [northSheet, setNorthSheet] = useState(false)
   const [detailPlant, setDetailPlant] = useState(null)
+  const [dim, setDimState] = useState(() => { try { return localStorage.getItem(DIM_KEY) || '2d' } catch { return '2d' } })
+  const setDim = d => { setDimState(d); try { localStorage.setItem(DIM_KEY, d) } catch { /* private mode */ } }
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
 
@@ -423,11 +441,24 @@ export default function PlanView() {
 
   const freshDetail = detailPlant && state.plants.find(p => p.id === detailPlant.id)
 
+  /* ── 3D view ── */
+  if (dim === '3d') {
+    return (
+      <div className="main-content">
+        <div className="section-head"><h2>Floor Plan</h2><DimToggle dim={dim} setDim={setDim} /></div>
+        <Suspense fallback={<div className="card empty"><Loader2 className="spin" /> <p>Loading 3D…</p></div>}>
+          <Plan3D onOpenPlant={setDetailPlant} />
+        </Suspense>
+        {freshDetail && <PlantDetailModal plant={freshDetail} onClose={() => setDetailPlant(null)} />}
+      </div>
+    )
+  }
+
   /* ── empty state ── */
   if (!planImage) {
     return (
       <div className="main-content">
-        <div className="section-head"><h2>Floor Plan</h2></div>
+        <div className="section-head"><h2>Floor Plan</h2><DimToggle dim={dim} setDim={setDim} /></div>
         <div className="card empty">
           <Compass className="big" strokeWidth={1} />
           <h3>Map your home</h3>
@@ -451,6 +482,7 @@ export default function PlanView() {
         <span className="sub">
           {plan.metersPerUnit ? `scale set · ` : ''}{placed.length}/{state.plants.length} placed
         </span>
+        <DimToggle dim={dim} setDim={setDim} />
       </div>
 
       <div className="plan-toolbar">
