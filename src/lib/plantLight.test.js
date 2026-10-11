@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestSpots, dliColor, judge, lightAt, parseLight } from './plantLight.js'
+import { bestSpots, dliColor, dliToLux, fmtLux, judge, lightAt, LUX_PER_DLI, NEEDS, needLux, parseLight } from './plantLight.js'
 
 // A 4 x 2 lattice (0.2 m cells) in two rooms, two layers: brighter by the "window" (high ix) and up high.
 function grid() {
@@ -38,14 +38,20 @@ describe('lightAt', () => {
 
 describe('judge', () => {
   it('rates a spot against the plant light level', () => {
-    expect(judge('partial', { dli: 0.6, sunHours: 0 }).status).toBe('dark')
-    expect(judge('partial', { dli: 4, sunHours: 0 }).status).toBe('low')
+    expect(judge('partial', { dli: 0.6, sunHours: 0 }).status).toBe('dark')   // ~750 lx
+    expect(judge('partial', { dli: 1.0, sunHours: 0 }).status).toBe('low')    // ~1,250 lx
     expect(judge('partial', { dli: 8, sunHours: 1 }).status).toBe('ideal')
     expect(judge('shade', { dli: 4, sunHours: 2 }).status).toBe('sun')
     expect(judge('shade', { dli: 4, sunHours: 5 }).status).toBe('harsh')
     expect(judge('direct', { dli: 20, sunHours: 5 }).status).toBe('ideal')
     expect(judge('direct', { dli: 20, sunHours: 5 }).cls).toBe('ok')
     expect(judge('partial', null)).toBe(null)
+  })
+  it('calls an orchid at ~1,900 lx all day ideal (indoor plants live on far less than greenhouse targets)', () => {
+    const dli = 1900 / LUX_PER_DLI
+    expect(judge('partial', { dli, sunHours: 0 }).status).toBe('ideal')
+    expect(needLux(NEEDS.partial)).toBe('1,500–10k lx')
+    expect(fmtLux(dliToLux(dli))).toBe('1,900')
   })
 })
 
@@ -55,7 +61,7 @@ describe('bestSpots', () => {
     const indoor = bestSpots(L, rooms, 'partial', { h: 0.75, spread: 0.3 })
     expect(indoor.every(s => s.room === 'Living Room')).toBe(true)
     expect(indoor[0]).toMatchObject({ status: 'ideal', h: 0.75 })
-    expect(indoor[0].dli).toBeGreaterThanOrEqual(5)
+    expect(indoor[0].dli).toBeGreaterThanOrEqual(NEEDS.partial.ideal[0])
     for (let i = 1; i < indoor.length; i++) {
       for (let j = 0; j < i; j++) expect(Math.hypot(indoor[i].x - indoor[j].x, indoor[i].y - indoor[j].y)).toBeGreaterThanOrEqual(0.3)
     }
@@ -72,8 +78,8 @@ it('colours DLI from dark blue to red', () => {
 describe('bestSpots preferences', () => {
   const L = parseLight(grid())
   it('prefers the middle of the ideal range over its bright edge', () => {
-    // partial wants 5-12 (centre ~7.7): at table height the lattice offers 4, 8, 12, 16 -> 8 wins over 12
-    expect(bestSpots(L, rooms, 'partial', { h: 0.75, spread: 0.1 })[0].dli).toBe(8)
+    // partial wants 1.2-8 (centre ~3.1): at table height the lattice offers 4, 8, 12, 16 -> 4 wins over 8
+    expect(bestSpots(L, rooms, 'partial', { h: 0.75, spread: 0.1 })[0].dli).toBe(4)
   })
   it("keeps the own-room preference small: a clearly better spot elsewhere still wins", () => {
     const s = bestSpots(L, rooms, 'direct', { h: 0.75, outdoorOk: true, room: 'Living Room' })

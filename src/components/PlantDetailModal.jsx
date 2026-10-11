@@ -11,7 +11,7 @@ import { generatePlantIcon } from '../lib/gemini.js'
 import { resizeImage } from '../lib/image.js'
 import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
-import { judge, lightAt, parseLight } from '../lib/plantLight.js'
+import { dliToLux, fmtLux, judge, lightAt, needLux, parseLight } from '../lib/plantLight.js'
 import { Sheet } from './Sheet.jsx'
 import { POT_MATERIALS, POT_COLORS, BLOOM_COLORS, resolveAppearance } from '../lib/potOptions.js'
 
@@ -214,8 +214,8 @@ export function PlantDetailModal({ plant, onClose }) {
               {zone && !measured && <small>Placed in “{zone.name}” ({LIGHT_LABELS[zone.light]}){lightMismatch ? ' — light mismatch!' : ''}</small>}
               {measured && (
                 <small>
-                  Measured at its spot: <b>{measured.dli.toFixed(1)} mol/m²/day</b>, {measured.sunHours} h sun on a clear day
-                  {' '}(needs {measured.need.ideal[0]}–{measured.need.ideal[1]}) <span className={`tag tag-${measured.cls}`}>{measured.label}</span>
+                  Measured at its spot: <b>≈{fmtLux(dliToLux(measured.dli))} lx</b> daytime average, {measured.sunHours} h sun on a clear day
+                  {' '}(needs {needLux(measured.need)}) <span className={`tag tag-${measured.cls}`}>{measured.label}</span>
                   {measured.hint ? <> Try {measured.hint}.</> : null}
                 </small>
               )}

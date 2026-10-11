@@ -4,13 +4,25 @@
 // per 20 cm cell and height layer, lux by hour, DLI (daily light integral, mol/m²/day of photosynthetic
 // light) and hours of direct sun. Cloudy days give less, so these are the best-case figures for a spot.
 
-// What each catalogue light level needs. DLI ranges follow common houseplant guidance (low-light foliage
-// ~2-5, bright indirect ~5-12, sun lovers 12+); sun hours = time in a direct beam that day.
+// Daily light (mol/m²/day) <-> the average daytime lux a meter shows: 1 mol/m²/day of daylight is about
+// 1,250 lx held for 12 hours (54 lux per µmol/m²/s).
+export const LUX_PER_DLI = 1250
+export const dliToLux = dli => dli * LUX_PER_DLI
+
+// What each catalogue light level needs, from the usual houseplant bands in lux (low light ~500-2,500 lx,
+// bright indirect ~2,500-10,000 lx, direct sun 10,000+), as daytime averages. Indoor plants live on far
+// less than greenhouse targets: an orchid doing well at ~1,900 lx is "ideal" here. sun hours = time in a
+// direct beam that day.
 export const NEEDS = {
-  shade:   { min: 1, ideal: [2, 5],   maxSun: 1 },
-  partial: { min: 3, ideal: [5, 12],  maxSun: 4 },
-  direct:  { min: 8, ideal: [12, 35], minSun: 2 },
+  shade:   { min: 0.2,  ideal: [0.4, 2.4], maxSun: 1 },   //   250 lx min,   500-3,000 lx ideal
+  partial: { min: 0.65, ideal: [1.2, 8],   maxSun: 4 },   //   800 lx min, 1,500-10,000 lx ideal
+  direct:  { min: 4,    ideal: [8, 35],    minSun: 2 },   // 5,000 lx min, 10,000+ lx ideal
 }
+
+// "1,500–10,000 lx" for display
+export const fmtLux = v => (v >= 10000 ? `${Math.round(v / 1000)}k`
+  : v >= 1000 ? (Math.round(v / 100) * 100).toLocaleString('en-US') : String(Math.round(v / 10) * 10))
+export const needLux = need => `${fmtLux(dliToLux(need.ideal[0]))}–${fmtLux(dliToLux(need.ideal[1]))} lx`
 
 export const STATUS = {
   dark:   { label: 'Too dark',      cls: 'danger' },
@@ -148,10 +160,10 @@ export function bestSpots(L, rooms, lightLevel, { h = 0, outdoorOk = false, coun
   return out
 }
 
-// Colour for a DLI value on a log scale (0.3 .. 40 mol/m²/day), turbo-like: dark blue -> green -> red.
+// Colour for a DLI value on a log scale (0.15 .. 30 mol/m²/day), turbo-like: dark blue -> green -> red.
 const RAMP = [[48, 18, 59], [70, 134, 251], [26, 228, 182], [162, 252, 60], [250, 187, 45], [228, 70, 10], [122, 4, 3]]
 export function dliColor(dli) {
-  const lo = Math.log10(0.3), hi = Math.log10(40)
+  const lo = Math.log10(0.15), hi = Math.log10(30)   // ~200 lx .. ~37,000 lx daytime average
   let t = (Math.log10(Math.max(dli, 0.01)) - lo) / (hi - lo)
   t = Math.min(1, Math.max(0, t)) * (RAMP.length - 1)
   const i = Math.min(RAMP.length - 2, Math.floor(t)), f = t - i

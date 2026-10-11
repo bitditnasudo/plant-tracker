@@ -8,12 +8,12 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { Box, Loader2, Maximize2, Trash2, Wand2, ArrowUp, ArrowDown, Move, FileText, X, Minus, Plus, Sun, Sparkles } from 'lucide-react'
+import { Box, Loader2, Maximize2, Trash2, Wand2, ArrowUp, ArrowDown, Move, FileText, X, Minus, Plus, Sun, Sparkles, Tag } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { waterDaysLeft } from '../lib/schedule.js'
 import { buildPlant3D } from '../lib/plant3d.js'
-import { bestSpots, dliColor, judge, lightAt, parseLight } from '../lib/plantLight.js'
+import { bestSpots, dliColor, dliToLux, fmtLux, judge, lightAt, needLux, parseLight } from '../lib/plantLight.js'
 import { resolveAppearance } from '../lib/potOptions.js'
 import { parseLightmapExport, toThree, fromThree, roomAt, autoPlace, round3, fileToDataURL, dataURLToArrayBuffer } from '../lib/model3d.js'
 import { ConfirmSheet } from './Sheet.jsx'
@@ -25,6 +25,14 @@ const SIZE_MAX = 2.5
 
 const plantName = p => p.nickname || getCatalogPlant(p.catalogId)?.name || 'Plant'
 const layerName = h => (h <= 0.3 ? 'Floor' : h <= 1.0 ? 'Table' : 'Shelf')
+const LABEL_MODES = ['all', 'selected', 'off']
+const LABEL_TEXT = { all: 'Labels: all', selected: 'Labels: selected', off: 'Labels: off' }
+const LABEL_KEY = 'plan3d:labels' // per device
+// Labels keep their pixel size whatever the zoom, so they are scaled down with distance: full size within
+// LABEL_FULL_M metres of the camera, never below LABEL_MIN of it.
+const LABEL_FULL_M = 3
+const LABEL_MIN = 0.45
+
 const LIGHT_MARK = { dark: '↓', low: '↓', ideal: '', bright: '', sun: '↑', harsh: '↑' }
 
 // Everything that changes how a plant LOOKS: its clay model is rebuilt only when this changes.
@@ -58,8 +66,11 @@ function dropLabel(ent) {
 
 function makeLabel(plant, lat, selected, onTap, height, light) {
   const left = waterDaysLeft(plant, lat)
-  const el = document.createElement('div')
+  const anchor = document.createElement('div') // positioned by CSS2DRenderer (it owns this element's transform)
+  anchor.className = 'plant3d-label-anchor'
+  const el = document.createElement('div')       // the card: scaled with zoom via its own transform
   el.className = `plant3d-label${selected ? ' is-selected' : ''}`
+  anchor.append(el)
   const tag = document.createElement('span')
   tag.className = `tag ${left <= 0 ? 'tag-danger' : left <= 1 ? 'tag-warn' : 'tag-ok'}`
   tag.textContent = `💧${left <= 0 ? '!' : `${left}d`}`
@@ -75,7 +86,7 @@ function makeLabel(plant, lat, selected, onTap, height, light) {
   }
   // plants are small at whole-apartment zoom: the label is the easy thing to tap
   el.addEventListener('click', e => { e.stopPropagation(); onTap(plant.id) })
-  const o = new CSS2DObject(el)
+  const o = new CSS2DObject(anchor)
   o.position.set(0, height + 0.06, 0)
   return o
 }
@@ -112,6 +123,14 @@ export default function Plan3D({ onOpenPlant }) {
   /* ── measured light (from the lightmap export) ── */
   const L = useMemo(() => { try { return parseLight(model.light) } catch { return null } }, [model.light])
   const [overlay, setOverlay] = useState(false)
+  const [labelMode, setLabelModeState] = useState(() => {
+    try { return LABEL_MODES.includes(localStorage.getItem(LABEL_KEY)) ? localStorage.getItem(LABEL_KEY) : 'all' } catch { return 'all' }
+  })
+  const cycleLabels = () => setLabelModeState(m => {
+    const next = LABEL_MODES[(LABEL_MODES.indexOf(m) + 1) % LABEL_MODES.length]
+    try { localStorage.setItem(LABEL_KEY, next) } catch { /* private mode */ }
+    return next
+  })
   const [layer, setLayer] = useState(null)
   const [showSpots, setShowSpots] = useState(false)
   useEffect(() => setShowSpots(false), [selectedId])
@@ -153,7 +172,7 @@ export default function Plan3D({ onOpenPlant }) {
     const requestRender = () => {
       if (pending) return
       pending = true
-      requestAnimationFrame(() => { pending = false; renderer.render(scene, camera); labels.render(scene, camera) })
+      requestAnimationFrame(() => { pending = false; ctx.scaleLabels?.(); renderer.render(scene, camera); labels.render(scene, camera) })
     }
     controls.addEventListener('change', requestRender)
     const resize = () => {
@@ -174,6 +193,15 @@ export default function Plan3D({ onOpenPlant }) {
       controls.target.copy(c)
       camera.position.set(c.x + s * 0.3, c.y + s * 0.85, c.z + s * 0.55)
       controls.update(); requestRender()
+    }
+    const tmp = new THREE.Vector3()
+    ctx.scaleLabels = () => {
+      for (const ent of (ctx.plantEnts || new Map()).values()) {
+        const card = ent.label?.element.firstChild
+        if (!card) continue
+        const d = ent.label.getWorldPosition(tmp).distanceTo(camera.position)
+        card.style.transform = `scale(${Math.min(1, Math.max(LABEL_MIN, LABEL_FULL_M / d)).toFixed(3)})`
+      }
     }
     three.current = ctx
     resize()
@@ -326,9 +354,11 @@ export default function Plan3D({ onOpenPlant }) {
       if (sel && !ent.ring) { ent.ring = makeRing(ent.model.userData.radius); ent.group.add(ent.ring) }
       if (!sel && ent.ring) { ent.group.remove(ent.ring); disposeTree(ent.ring); ent.ring = null }
       dropLabel(ent) // cheap, and keeps the watering tag current
-      const light = L ? judge(getCatalogPlant(p.catalogId)?.light, lightAt(L, p.pos3d)) : null
-      ent.label = makeLabel(p, lat, sel, id => { if (!live.current.placingId) setSelectedId(id) }, ent.model.userData.height, light)
-      ent.group.add(ent.label)
+      if (labelMode === 'all' || (labelMode === 'selected' && sel)) {
+        const light = L ? judge(getCatalogPlant(p.catalogId)?.light, lightAt(L, p.pos3d)) : null
+        ent.label = makeLabel(p, lat, sel, id => { if (!live.current.placingId) setSelectedId(id) }, ent.model.userData.height, light)
+        ent.group.add(ent.label)
+      }
     }
     for (const [id, ent] of [...ents]) if (!keep.has(id)) drop(id, ent)
     ctx.requestRender()
@@ -385,8 +415,8 @@ export default function Plan3D({ onOpenPlant }) {
         const el = document.createElement('button')
         el.type = 'button'
         el.className = 'plant3d-spot'
-        el.textContent = `${i + 1} · ${s.dli.toFixed(1)}`
-        el.title = `${s.room}: ${s.dli.toFixed(1)} mol/m²/day, ${s.sunHours} h sun (${s.label}). Tap to move the plant here.`
+        el.textContent = `${i + 1} · ${fmtLux(dliToLux(s.dli))} lx`
+        el.title = `${s.room}: ≈${fmtLux(dliToLux(s.dli))} lx daytime average, ${s.sunHours} h sun (${s.label}). Tap to move the plant here.`
         el.addEventListener('click', e => {
           e.stopPropagation()
           const p = live.current.plants.find(q => q.id === live.current.selectedId)
@@ -484,6 +514,10 @@ export default function Plan3D({ onOpenPlant }) {
         {L && (
           <button className={`chip${overlay ? ' is-active' : ''}`} onClick={() => setOverlay(o => !o)}><Sun size={14} /> Light</button>
         )}
+        <button className={`chip${labelMode !== 'all' ? ' is-active' : ''}`} onClick={cycleLabels}
+          title="Plant labels: all, only the selected plant, or none (tap a plant to select it)">
+          <Tag size={14} /> {LABEL_TEXT[labelMode]}
+        </button>
         {fileInput('Replace model', 'chip as-file')}
         <button className="chip" onClick={() => setConfirmRemove(true)}><Trash2 size={14} /> Remove</button>
       </div>
@@ -510,8 +544,8 @@ export default function Plan3D({ onOpenPlant }) {
               ))}
             </div>
           )}
-          <div className="plan3d-ramp"><span>0.3</span><i /><span>40 mol/m²/day</span></div>
-          <small className="muted">Daily light at {layerName(activeLayer).toLowerCase()} height ({activeLayer} m) on a clear day. Shade plants want ~2–5, bright-indirect ~5–12, sun lovers 12+.</small>
+          <div className="plan3d-ramp"><span>200 lx</span><i /><span>37k lx</span></div>
+          <small className="muted">Daytime average light at {layerName(activeLayer).toLowerCase()} height ({activeLayer} m) on a clear day. Low-light plants ~500–3,000 lx, bright indirect ~1,500–10,000 lx, sun lovers 10,000+.</small>
         </div>
       )}
 
@@ -538,7 +572,7 @@ export default function Plan3D({ onOpenPlant }) {
                 <>
                   <span className={`tag tag-${selJudge.cls}`}>{selJudge.label}</span>
                   <span>
-                    {selLight.dli.toFixed(1)} mol/m²/day · {selLight.sunHours} h sun · needs {selJudge.need.ideal[0]}–{selJudge.need.ideal[1]}
+                    ≈{fmtLux(dliToLux(selLight.dli))} lx daytime average ({selLight.dli.toFixed(1)} mol/m²/day) · {selLight.sunHours} h sun · needs {needLux(selJudge.need)}
                     {selJudge.hint ? <> — try {selJudge.hint}</> : null}
                   </span>
                 </>
