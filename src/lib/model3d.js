@@ -24,10 +24,13 @@ export function parseLightmapExport(text) {
     light: doc.light ? {
       hours: doc.light.hours, cellSize: doc.light.cell_size_m, workPlane: doc.light.work_plane_height_m,
       calibrated: !!doc.light.calibrated, note: doc.light.dli_note, rooms: doc.light.rooms,
-      holdoutError: doc.light.holdout_median_abs_pct_error,
+      holdoutError: doc.light.holdout_median_abs_pct_error, heights: doc.light.heights_m || [doc.light.work_plane_height_m],
     } : null,
   }
-  const light = doc.light ? JSON.stringify({ hours: doc.light.hours, cells: doc.light.cells }) : null
+  // the lattice + layers let lightAt() find a spot's cell directly (see plantLight.js)
+  const light = doc.light ? JSON.stringify({
+    hours: doc.light.hours, cells: doc.light.cells, grid: doc.light.grid || null, heights: doc.light.heights_m || null,
+  }) : null
   return { meta, light }
 }
 

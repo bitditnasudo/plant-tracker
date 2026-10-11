@@ -1026,3 +1026,14 @@
 .plan3d-selected { margin-top: var(--sp-3); padding: var(--sp-3); }
 .plan3d-selected-head { display: flex; align-items: center; gap: var(--sp-2); }
 .plan3d-selected-head .muted { flex: 1; font-size: var(--fs-sm); }
+
+.plan3d-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin: var(--sp-2) 0; }
+.plan3d-legend small { flex-basis: 100%; }
+.plan3d-ramp { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); flex: 1; min-width: 180px; }
+.plan3d-ramp i { flex: 1; height: 10px; border-radius: 5px; background: linear-gradient(90deg, #30123b, #4686fb, #1ae4b6, #a2fc3c, #fabb2d, #e4460a, #7a0403); }
+.plan3d-light { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: var(--sp-2) 0; font-size: var(--fs-sm); }
+.plan3d-spots-note { font-size: var(--fs-sm); margin: 0 0 var(--sp-2); }
+.plant3d-spot {
+  pointer-events: auto; cursor: pointer; border: none; border-radius: var(--radius-pill);
+  padding: 3px 9px; font-size: 12px; font-weight: 700; color: #fff; background: #00A86B; box-shadow: var(--shadow-card);
+}

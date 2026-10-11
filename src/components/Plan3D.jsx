@@ -8,11 +8,12 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { Box, Loader2, Maximize2, Trash2, Wand2, ArrowUp, ArrowDown, Move, FileText, X, Minus, Plus } from 'lucide-react'
+import { Box, Loader2, Maximize2, Trash2, Wand2, ArrowUp, ArrowDown, Move, FileText, X, Minus, Plus, Sun, Sparkles } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { waterDaysLeft } from '../lib/schedule.js'
 import { buildPlant3D } from '../lib/plant3d.js'
+import { bestSpots, dliColor, judge, lightAt, parseLight } from '../lib/plantLight.js'
 import { resolveAppearance } from '../lib/potOptions.js'
 import { parseLightmapExport, toThree, fromThree, roomAt, autoPlace, round3, fileToDataURL, dataURLToArrayBuffer } from '../lib/model3d.js'
 import { ConfirmSheet } from './Sheet.jsx'
@@ -23,6 +24,8 @@ const SIZE_MIN = 0.4
 const SIZE_MAX = 2.5
 
 const plantName = p => p.nickname || getCatalogPlant(p.catalogId)?.name || 'Plant'
+const layerName = h => (h <= 0.3 ? 'Floor' : h <= 1.0 ? 'Table' : 'Shelf')
+const LIGHT_MARK = { dark: '↓', low: '↓', ideal: '', bright: '', sun: '↑', harsh: '↑' }
 
 // Everything that changes how a plant LOOKS: its clay model is rebuilt only when this changes.
 function lookKey(p) {
@@ -53,7 +56,7 @@ function dropLabel(ent) {
   ent.label = null
 }
 
-function makeLabel(plant, lat, selected, onTap, height) {
+function makeLabel(plant, lat, selected, onTap, height, light) {
   const left = waterDaysLeft(plant, lat)
   const el = document.createElement('div')
   el.className = `plant3d-label${selected ? ' is-selected' : ''}`
@@ -63,6 +66,13 @@ function makeLabel(plant, lat, selected, onTap, height) {
   const name = document.createElement('b')
   name.textContent = plantName(plant)
   el.append(name, tag)
+  if (light) {
+    const lt = document.createElement('span')
+    lt.className = `tag tag-${light.cls}`
+    lt.title = light.label
+    lt.textContent = `☀${LIGHT_MARK[light.status] || ''}`
+    el.append(lt)
+  }
   // plants are small at whole-apartment zoom: the label is the easy thing to tap
   el.addEventListener('click', e => { e.stopPropagation(); onTap(plant.id) })
   const o = new CSS2DObject(el)
@@ -98,6 +108,21 @@ export default function Plan3D({ onOpenPlant }) {
   const autoMoves = useMemo(() => meta ? autoPlace(state.plants, state.plan.zones || [], meta.rooms) : {},
     [state.plants, state.plan.zones, meta])
   const selected = state.plants.find(p => p.id === selectedId) || null
+
+  /* ── measured light (from the lightmap export) ── */
+  const L = useMemo(() => { try { return parseLight(model.light) } catch { return null } }, [model.light])
+  const [overlay, setOverlay] = useState(false)
+  const [layer, setLayer] = useState(null)
+  const [showSpots, setShowSpots] = useState(false)
+  useEffect(() => setShowSpots(false), [selectedId])
+  const heights = L?.heights || []
+  const activeLayer = layer ?? heights.reduce((b, h) => (Math.abs(h - 0.75) < Math.abs(b - 0.75) ? h : b), heights[0])
+  const selCat = selected ? getCatalogPlant(selected.catalogId) : null
+  const selLight = selected?.pos3d && L ? lightAt(L, selected.pos3d) : null
+  const selJudge = selLight ? judge(selCat?.light, selLight) : null
+  const spots = useMemo(() => (showSpots && selected && L
+    ? bestSpots(L, meta?.rooms, selCat?.light, { h: selected.pos3d?.h || 0, outdoorOk: !!selCat?.outdoor, room: selected.pos3d?.room })
+    : []), [showSpots, selected, L, meta, selCat])
 
   /* ── scene setup (once per model) ── */
   useEffect(() => {
@@ -301,13 +326,83 @@ export default function Plan3D({ onOpenPlant }) {
       if (sel && !ent.ring) { ent.ring = makeRing(ent.model.userData.radius); ent.group.add(ent.ring) }
       if (!sel && ent.ring) { ent.group.remove(ent.ring); disposeTree(ent.ring); ent.ring = null }
       dropLabel(ent) // cheap, and keeps the watering tag current
-      ent.label = makeLabel(p, lat, sel, id => { if (!live.current.placingId) setSelectedId(id) }, ent.model.userData.height)
+      const light = L ? judge(getCatalogPlant(p.catalogId)?.light, lightAt(L, p.pos3d)) : null
+      ent.label = makeLabel(p, lat, sel, id => { if (!live.current.placingId) setSelectedId(id) }, ent.model.userData.height, light)
       ent.group.add(ent.label)
     }
     for (const [id, ent] of [...ents]) if (!keep.has(id)) drop(id, ent)
     ctx.requestRender()
   }
   useEffect(syncPlants) // cheap at household plant counts; runs after every render
+
+  /* ── light on the floors: one square per 20 cm cell, coloured by daily light ── */
+  useEffect(() => {
+    const ctx = three.current
+    if (!ctx || !meta) return
+    const key = overlay && L ? `${activeLayer}|${L.cells.length}|${model.light?.length}` : ''
+    if (ctx.overlayKey === key) return
+    if (ctx.overlay) { ctx.scene.remove(ctx.overlay); disposeTree(ctx.overlay); ctx.overlay = null }
+    ctx.overlayKey = key
+    if (key) {
+      const cells = L.cells.filter(c => (c.h ?? activeLayer) === activeLayer)
+      const sz = (L.grid?.spacing || 0.2) * 0.94
+      const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(sz, sz).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.8, depthWrite: false }), cells.length)
+      const floorZ = Object.fromEntries(meta.rooms.map(r => [r.name, r.floorZ || 0]))
+      const M = new THREE.Matrix4(), col = new THREE.Color()
+      cells.forEach((c, i) => {
+        M.makeTranslation(c.x, (floorZ[c.room] || 0) + 0.012, -c.y) // drawn on the floor, whatever the layer
+        mesh.setMatrixAt(i, M)
+        const [r, g, b] = dliColor(c.dli)
+        mesh.setColorAt(i, col.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace))
+      })
+      ctx.overlay = mesh
+      ctx.scene.add(mesh)
+    }
+    ctx.requestRender()
+  })
+
+  /* ── best spots for the selected plant: numbered markers, tap one to move the plant there ── */
+  useEffect(() => {
+    const ctx = three.current
+    if (!ctx || !meta) return
+    const key = spots.map(s => `${s.x},${s.y}`).join('|')
+    if (ctx.spotsKey === key) return
+    if (ctx.spots) {
+      ctx.spots.traverse(o => { if (o.isCSS2DObject) o.element.remove() })
+      ctx.scene.remove(ctx.spots); disposeTree(ctx.spots); ctx.spots = null
+    }
+    ctx.spotsKey = key
+    if (spots.length) {
+      const group = new THREE.Group()
+      const h = live.current.plants.find(p => p.id === live.current.selectedId)?.pos3d?.h || 0
+      spots.forEach((s, i) => {
+        const room = meta.rooms.find(r => r.name === s.room)
+        const y0 = (room?.floorZ || 0) + h
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.13, 28).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ color: '#00A86B', side: THREE.DoubleSide }))
+        ring.position.set(...toThree(s.x, s.y, y0 + 0.006))
+        const el = document.createElement('button')
+        el.type = 'button'
+        el.className = 'plant3d-spot'
+        el.textContent = `${i + 1} · ${s.dli.toFixed(1)}`
+        el.title = `${s.room}: ${s.dli.toFixed(1)} mol/m²/day, ${s.sunHours} h sun (${s.label}). Tap to move the plant here.`
+        el.addEventListener('click', e => {
+          e.stopPropagation()
+          const p = live.current.plants.find(q => q.id === live.current.selectedId)
+          if (!p) return
+          updatePlantRef.current(p.id, { pos3d: { ...p.pos3d, x: s.x, y: s.y, room: s.room } })
+          setShowSpots(false)
+        })
+        const tag = new CSS2DObject(el)
+        tag.position.set(...toThree(s.x, s.y, y0 + 0.25))
+        group.add(ring, tag)
+      })
+      ctx.spots = group
+      ctx.scene.add(group)
+    }
+    ctx.requestRender()
+  })
 
   /* ── actions ── */
   const onFiles = async e => {
@@ -386,6 +481,9 @@ export default function Plan3D({ onOpenPlant }) {
         {Object.keys(autoMoves).length > 0 && (
           <button className="chip" onClick={runAutoPlace}><Wand2 size={14} /> Place {Object.keys(autoMoves).length} by room</button>
         )}
+        {L && (
+          <button className={`chip${overlay ? ' is-active' : ''}`} onClick={() => setOverlay(o => !o)}><Sun size={14} /> Light</button>
+        )}
         {fileInput('Replace model', 'chip as-file')}
         <button className="chip" onClick={() => setConfirmRemove(true)}><Trash2 size={14} /> Remove</button>
       </div>
@@ -398,6 +496,22 @@ export default function Plan3D({ onOpenPlant }) {
               🪴 Place {plantName(p)}
             </button>
           ))}
+        </div>
+      )}
+
+      {overlay && L && (
+        <div className="plan3d-legend">
+          {heights.length > 1 && (
+            <div className="seg plan-dim" role="radiogroup" aria-label="Light at height">
+              {heights.map(h => (
+                <button key={h} role="radio" aria-checked={h === activeLayer} className={h === activeLayer ? 'is-active' : ''} onClick={() => setLayer(h)}>
+                  {layerName(h)}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="plan3d-ramp"><span>0.3</span><i /><span>40 mol/m²/day</span></div>
+          <small className="muted">Daily light at {layerName(activeLayer).toLowerCase()} height ({activeLayer} m) on a clear day. Shade plants want ~2–5, bright-indirect ~5–12, sun lovers 12+.</small>
         </div>
       )}
 
@@ -418,8 +532,31 @@ export default function Plan3D({ onOpenPlant }) {
             </span>
             <button className="icon-btn" aria-label="Close" onClick={() => setSelectedId(null)}><X size={16} /></button>
           </div>
+          {selected.pos3d && L && (
+            <div className="plan3d-light">
+              {selJudge ? (
+                <>
+                  <span className={`tag tag-${selJudge.cls}`}>{selJudge.label}</span>
+                  <span>
+                    {selLight.dli.toFixed(1)} mol/m²/day · {selLight.sunHours} h sun · needs {selJudge.need.ideal[0]}–{selJudge.need.ideal[1]}
+                    {selJudge.hint ? <> — try {selJudge.hint}</> : null}
+                  </span>
+                </>
+              ) : <span className="muted">No light data at this spot.</span>}
+            </div>
+          )}
+          {showSpots && (
+            <p className="muted plan3d-spots-note">
+              {spots.length
+                ? `Best spots at ${layerName(spots[0].h).toLowerCase()} height: tap a green number in the view to move it there.`
+                : 'No spot in the home suits it.'}
+            </p>
+          )}
           <div className="plan-toolbar">
             <button className="chip" onClick={() => onOpenPlant(selected)}><FileText size={14} /> Care sheet</button>
+            {L && (
+              <button className={`chip${showSpots ? ' is-active' : ''}`} onClick={() => setShowSpots(v => !v)}><Sparkles size={14} /> Best spots</button>
+            )}
             <button className="chip" onClick={() => setPlacingId(selected.id)}><Move size={14} /> Move</button>
             <button className="chip" aria-label="Raise" onClick={() => setHeight(H_STEP)}><ArrowUp size={14} /> Higher</button>
             <button className="chip" aria-label="Lower" disabled={!selected.pos3d?.h} onClick={() => setHeight(-H_STEP)}><ArrowDown size={14} /> Lower</button>

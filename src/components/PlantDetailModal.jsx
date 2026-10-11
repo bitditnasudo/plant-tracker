@@ -11,6 +11,7 @@ import { generatePlantIcon } from '../lib/gemini.js'
 import { resizeImage } from '../lib/image.js'
 import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
+import { judge, lightAt, parseLight } from '../lib/plantLight.js'
 import { Sheet } from './Sheet.jsx'
 import { POT_MATERIALS, POT_COLORS, BLOOM_COLORS, resolveAppearance } from '../lib/potOptions.js'
 
@@ -129,7 +130,7 @@ function CareHistory({ plant }) {
 }
 
 export function PlantDetailModal({ plant, onClose }) {
-  const { state, icons, updatePlant, removePlant, markWatered, markMisted, markFertilized, saveIcon } = useStore()
+  const { state, icons, model, updatePlant, removePlant, markWatered, markMisted, markFertilized, saveIcon } = useStore()
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(null)
   const cat = getCatalogPlant(plant.catalogId)
@@ -145,6 +146,9 @@ export function PlantDetailModal({ plant, onClose }) {
   const name = plant.nickname || cat.name
 
   const lightMismatch = zone && zone.light !== cat.light
+  // measured light where the plant stands in 3D (lightmap export), when both exist
+  let measured = null
+  try { measured = plant.pos3d && model?.light ? judge(cat.light, lightAt(parseLight(model.light), plant.pos3d)) : null } catch { measured = null }
 
   const generateIcon = async () => {
     setGenerating(true)
@@ -207,7 +211,14 @@ export function PlantDetailModal({ plant, onClose }) {
             <div className="row-icon"><Sun size={18} /></div>
             <div className="grow">
               Ideal light: <b>{LIGHT_LABELS[cat.light]}</b>
-              {zone && <small>Placed in “{zone.name}” ({LIGHT_LABELS[zone.light]}){lightMismatch ? ' — light mismatch!' : ''}</small>}
+              {zone && !measured && <small>Placed in “{zone.name}” ({LIGHT_LABELS[zone.light]}){lightMismatch ? ' — light mismatch!' : ''}</small>}
+              {measured && (
+                <small>
+                  Measured at its spot: <b>{measured.dli.toFixed(1)} mol/m²/day</b>, {measured.sunHours} h sun on a clear day
+                  {' '}(needs {measured.need.ideal[0]}–{measured.need.ideal[1]}) <span className={`tag tag-${measured.cls}`}>{measured.label}</span>
+                  {measured.hint ? <> Try {measured.hint}.</> : null}
+                </small>
+              )}
             </div>
           </div>
         </div>
