@@ -8,40 +8,52 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { Box, Loader2, Maximize2, Trash2, Wand2, ArrowUp, ArrowDown, Move, FileText, X } from 'lucide-react'
+import { Box, Loader2, Maximize2, Trash2, Wand2, ArrowUp, ArrowDown, Move, FileText, X, Minus, Plus } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { waterDaysLeft } from '../lib/schedule.js'
+import { buildPlant3D } from '../lib/plant3d.js'
+import { resolveAppearance } from '../lib/potOptions.js'
 import { parseLightmapExport, toThree, fromThree, roomAt, autoPlace, round3, fileToDataURL, dataURLToArrayBuffer } from '../lib/model3d.js'
 import { ConfirmSheet } from './Sheet.jsx'
 
 const TAP_PX = 8
 const H_STEP = 0.1
+const SIZE_MIN = 0.4
+const SIZE_MAX = 2.5
 
 const plantName = p => p.nickname || getCatalogPlant(p.catalogId)?.name || 'Plant'
 
-// Placeholder plant: clay pot + low-poly foliage. (Per-species clay models come next.)
-function makePlantObject(plant, selected) {
-  const g = new THREE.Group()
-  const clay = c => new THREE.MeshStandardMaterial({ color: c, roughness: 1, metalness: 0, flatShading: true })
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.08, 0.16, 8), clay('#D18C4B'))
-  pot.position.y = 0.08
-  const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 0), clay('#5E9E5A'))
-  leaves.position.y = 0.3
-  leaves.scale.set(1, 1.15, 1)
-  g.add(pot, leaves)
-  if (selected) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.22, 24).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: '#7E49B3', side: THREE.DoubleSide }))
-    ring.position.y = 0.006
-    g.add(ring)
-  }
-  g.scale.setScalar(1.5)
-  g.userData.plantId = plant.id
-  return g
+// Everything that changes how a plant LOOKS: its clay model is rebuilt only when this changes.
+function lookKey(p) {
+  return [p.catalogId, p.potMaterial, p.potColorId, p.potType, p.potColor, p.bloomColor, p.pos3d?.s || 1].join('|')
 }
 
-function makeLabel(plant, lat, selected, onTap) {
+function makeEntity(p, key) {
+  const cat = getCatalogPlant(p.catalogId)
+  const model = buildPlant3D(cat?.icon, resolveAppearance(p, cat || {}), p.id, p.pos3d?.s || 1)
+  const group = new THREE.Group()
+  group.add(model)
+  group.userData.plantId = p.id
+  return { key, group, model, ring: null, label: null }
+}
+
+function makeRing(radius) {
+  const r = Math.max(0.06, radius * 1.15)
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.025, 32).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: '#7E49B3', side: THREE.DoubleSide }))
+  ring.position.y = 0.004
+  return ring
+}
+
+function dropLabel(ent) {
+  if (!ent.label) return
+  ent.group.remove(ent.label)
+  ent.label.element.remove() // three only fires 'removed' on the object itself, not on DOM-backed children
+  ent.label = null
+}
+
+function makeLabel(plant, lat, selected, onTap, height) {
   const left = waterDaysLeft(plant, lat)
   const el = document.createElement('div')
   el.className = `plant3d-label${selected ? ' is-selected' : ''}`
@@ -54,7 +66,7 @@ function makeLabel(plant, lat, selected, onTap) {
   // plants are small at whole-apartment zoom: the label is the easy thing to tap
   el.addEventListener('click', e => { e.stopPropagation(); onTap(plant.id) })
   const o = new CSS2DObject(el)
-  o.position.set(0, 0.85, 0)
+  o.position.set(0, height + 0.06, 0)
   return o
 }
 
@@ -269,25 +281,30 @@ export default function Plan3D({ onOpenPlant }) {
   const updatePlantRef = useRef(updatePlant)
   updatePlantRef.current = updatePlant
 
-  /* ── plants: rebuilt whenever they or the selection change ── */
+  /* ── plants: models cached per plant; position, ring and label refreshed every render ── */
   const syncPlants = () => {
     const ctx = three.current
     if (!ctx || !meta) return
-    for (const o of [...ctx.plantsGroup.children]) {
-      ctx.plantsGroup.remove(o)
-      // three only fires 'removed' on the group itself, so its label's DOM element would linger
-      o.traverse(c => { if (c.isCSS2DObject) c.element.remove() })
-      disposeTree(o)
-    }
+    const ents = ctx.plantEnts || (ctx.plantEnts = new Map())
+    const drop = (id, ent) => { dropLabel(ent); ctx.plantsGroup.remove(ent.group); disposeTree(ent.group); ents.delete(id) }
+    const keep = new Set()
     for (const p of live.current.plants) {
       if (!p.pos3d) continue
+      keep.add(p.id)
+      const key = lookKey(p)
+      let ent = ents.get(p.id)
+      if (ent && ent.key !== key) { drop(p.id, ent); ent = null }
+      if (!ent) { ent = makeEntity(p, key); ents.set(p.id, ent); ctx.plantsGroup.add(ent.group) }
       const room = meta.rooms.find(r => r.name === p.pos3d.room)
+      ent.group.position.set(...toThree(p.pos3d.x, p.pos3d.y, (room?.floorZ || 0) + (p.pos3d.h || 0)))
       const sel = p.id === live.current.selectedId
-      const g = makePlantObject(p, sel)
-      g.add(makeLabel(p, lat, sel, id => { if (!live.current.placingId) setSelectedId(id) }))
-      g.position.set(...toThree(p.pos3d.x, p.pos3d.y, (room?.floorZ || 0) + (p.pos3d.h || 0)))
-      ctx.plantsGroup.add(g)
+      if (sel && !ent.ring) { ent.ring = makeRing(ent.model.userData.radius); ent.group.add(ent.ring) }
+      if (!sel && ent.ring) { ent.group.remove(ent.ring); disposeTree(ent.ring); ent.ring = null }
+      dropLabel(ent) // cheap, and keeps the watering tag current
+      ent.label = makeLabel(p, lat, sel, id => { if (!live.current.placingId) setSelectedId(id) }, ent.model.userData.height)
+      ent.group.add(ent.label)
     }
+    for (const [id, ent] of [...ents]) if (!keep.has(id)) drop(id, ent)
     ctx.requestRender()
   }
   useEffect(syncPlants) // cheap at household plant counts; runs after every render
@@ -326,6 +343,12 @@ export default function Plan3D({ onOpenPlant }) {
     if (!selected?.pos3d) return
     const h = Math.max(0, Math.min(2.5, round3((selected.pos3d.h || 0) + dh)))
     updatePlant(selected.id, { pos3d: { ...selected.pos3d, h } })
+  }
+
+  const setSize = f => {
+    if (!selected?.pos3d) return
+    const s = Math.max(SIZE_MIN, Math.min(SIZE_MAX, round3((selected.pos3d.s || 1) * f)))
+    updatePlant(selected.id, { pos3d: { ...selected.pos3d, s } })
   }
 
   const fileInput = (label, cls) => (
@@ -391,7 +414,7 @@ export default function Plan3D({ onOpenPlant }) {
           <div className="plan3d-selected-head">
             <b>{plantName(selected)}</b>
             <span className="muted">
-              {selected.pos3d ? `${selected.pos3d.room} · ${selected.pos3d.h ? `${selected.pos3d.h.toFixed(1)} m up` : 'on the floor'}` : 'not placed'}
+              {selected.pos3d ? `${selected.pos3d.room} · ${selected.pos3d.h ? `${selected.pos3d.h.toFixed(1)} m up` : 'on the floor'}${(selected.pos3d.s || 1) !== 1 ? ` · ${Math.round((selected.pos3d.s || 1) * 100)}% size` : ''}` : 'not placed'}
             </span>
             <button className="icon-btn" aria-label="Close" onClick={() => setSelectedId(null)}><X size={16} /></button>
           </div>
@@ -400,6 +423,8 @@ export default function Plan3D({ onOpenPlant }) {
             <button className="chip" onClick={() => setPlacingId(selected.id)}><Move size={14} /> Move</button>
             <button className="chip" aria-label="Raise" onClick={() => setHeight(H_STEP)}><ArrowUp size={14} /> Higher</button>
             <button className="chip" aria-label="Lower" disabled={!selected.pos3d?.h} onClick={() => setHeight(-H_STEP)}><ArrowDown size={14} /> Lower</button>
+            <button className="chip" aria-label="Smaller" disabled={(selected.pos3d?.s || 1) <= SIZE_MIN} onClick={() => setSize(0.8)}><Minus size={14} /> Smaller</button>
+            <button className="chip" aria-label="Bigger" disabled={(selected.pos3d?.s || 1) >= SIZE_MAX} onClick={() => setSize(1.25)}><Plus size={14} /> Bigger</button>
             <button className="chip" onClick={() => { updatePlant(selected.id, { pos3d: null }); setSelectedId(null) }}><Trash2 size={14} /> Unplace</button>
           </div>
         </div>
