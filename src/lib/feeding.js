@@ -27,9 +27,9 @@ export const SOURCES = {
   askExt:   { label: 'Ask Extension — fertilizing herbs', url: 'https://ask2.extension.org/kb/faq.php?id=753082' },
 }
 
-/* days: interval while the plant is growing. winterDays: interval out of
- * season, or null for a full winter pause (the default — most houseplants rest
- * and fertilizer they can't use stays in the pot as salt). */
+/* days: interval while the plant is growing. winterDays: a fixed interval out
+ * of season for plants that keep growing everywhere (orchids), or null to let
+ * the location decide — see winterFeedDays(). */
 export const FEED_RULES = {
   foliage: {
     label: 'Foliage houseplant', days: 60, winterDays: null,
@@ -46,7 +46,7 @@ export const FEED_RULES = {
   floweringIndoor: {
     label: 'Flowering houseplant', days: 30, winterDays: null,
     dose: 'label strength or weaker, never stronger',
-    why: 'Bloomers are the heavier feeders among houseplants, so they take the short end of the 1–3 month range — still only March to September.',
+    why: 'Bloomers are the heavier feeders among houseplants, so they take the short end of the 1–3 month range, with less or none in winter.',
     sources: ['illinois', 'iowa'],
   },
   container: {
@@ -142,5 +142,28 @@ export function nextSeasonStart(date = new Date(), latitude = 20) {
 }
 
 export const FEED_SEASON_LABEL = lat => (lat ?? 20) >= 0 ? 'March–September' : 'September–March'
+export const WINTER_LABEL = lat => (lat ?? 20) >= 0 ? 'Oct–Feb' : 'Apr–Aug'
+
+/* How winter is handled depends on how much winter there is. The extension
+ * sources are written for temperate climates (Illinois, Iowa, Minnesota),
+ * where houseplants really go dormant through dark, cold months — there the
+ * feed stops. Within ~25° of the equator winter days are only a couple of
+ * hours shorter and indoor growth slows rather than stops, so feeding drops
+ * to half as often instead ("little or no fertilizer" — Illinois — read as
+ * little). Returns the winter interval, or null for a full pause. */
+export const SUBTROPICAL_LAT = 25
+
+export function winterFeedDays(rule, latitude = 20) {
+  if (rule.winterDays) return rule.winterDays
+  return Math.abs(latitude ?? 20) < SUBTROPICAL_LAT ? rule.days * 2 : null
+}
+
+// "every 60 days, every 120 in Oct–Feb" / "every 60 days, March–September only"
+export function feedScheduleLabel(rule, latitude) {
+  const w = winterFeedDays(rule, latitude)
+  return w
+    ? `every ${rule.days} days, every ${w} in ${WINTER_LABEL(latitude)}`
+    : `every ${rule.days} days, ${FEED_SEASON_LABEL(latitude)} only`
+}
 
 export const flushRestsInWinter = group => group === 'cactus' || group === 'succulent'

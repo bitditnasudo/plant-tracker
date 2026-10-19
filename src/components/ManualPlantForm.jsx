@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronLeft, PencilLine, Wand2, Loader2 } from 'lucide-react'
 import { CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
 import { lookupPlantCare } from '../lib/gemini.js'
-import { feedRule, FEED_SEASON_LABEL } from '../lib/feeding.js'
+import { feedRule, feedScheduleLabel } from '../lib/feeding.js'
 import { useStore } from '../lib/store.jsx'
 import { PlantIcon, ICON_KEYS } from './PlantIcons.jsx'
 
@@ -189,7 +189,8 @@ export function ManualPlantForm({ onCancel, onCreate }) {
           <p className="muted note-inline">
             {(() => {
               const r = feedRule({ isOutside: outdoor }, { name, latin, category, waterSummer: summer })
-              return `Every ${r.days} days, ${FEED_SEASON_LABEL(state.settings.location?.lat)} — the cited rule for a ${r.label.toLowerCase()}.`
+              const s = feedScheduleLabel(r, state.settings.location?.lat)
+              return `${s[0].toUpperCase()}${s.slice(1)} — the cited rule for a ${r.label.toLowerCase()}.`
             })()}
           </p>
         </div>

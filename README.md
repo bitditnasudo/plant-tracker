@@ -106,7 +106,7 @@ conditions). What can be cited is university-extension and botanical-garden
 guidance, written per plant group, so `src/lib/feeding.js` maps each plant to a
 group and every rule links its sources on the care sheet:
 
-| Group | Feed every | Out of season | Sources |
+| Group | Feed every | Out of season (temperate) | Sources |
 |---|---|---|---|
 | Foliage houseplants, trees & palms | 60 d | paused | [Illinois](https://extension.illinois.edu/houseplants/care), [Iowa State](https://yardandgarden.extension.iastate.edu/faq/should-houseplants-be-fertilized-winter) |
 | Slow foliage (snake plant, ZZ…) | 90 d | paused | same |
@@ -118,9 +118,12 @@ group and every rule links its sources on the care sheet:
 | Holiday cacti | 30 d | paused | [UF/IFAS](https://blogs.ifas.ufl.edu/flaglerco/2023/11/20/a-guide-to-holiday-cacti-care-the-basics-pt-1/) |
 | Orchids | 14 d, quarter strength | every 28 d | [AOS](https://www.aos.org/orchids/articles/fertilize-weakly-weekly), [NYBG](https://libanswers.nybg.org/faq/223105) |
 
-The feeding season is March–September (mirrored south of the equator). A feed
-that falls due outside it waits until 1 March instead of showing as overdue,
-since fertilizer a resting plant can't use stays in the pot as salt. The group
+The feeding season is March–September (mirrored south of the equator). What
+"paused" means depends on the location: the sources are temperate (Midwest)
+guidance, so beyond 25° from the equator a feed that falls due out of season
+waits until 1 March, since fertilizer a resting plant can't use stays in the
+pot as salt. Within 25° (e.g. Querétaro at 20.6°N) winter is mild and growth
+only slows, so October–February feeds come half as often instead of stopping. The group
 is resolved when the schedule is read, so nothing is stored per plant and the
 old per-species `fertilize` numbers are ignored.
 

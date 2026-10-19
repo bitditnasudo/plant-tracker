@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { feedGroup, isFeedingSeason, nextSeasonStart, FEED_RULES, SOURCES, FLUSH } from './feeding.js'
+import { feedGroup, isFeedingSeason, nextSeasonStart, winterFeedDays, feedScheduleLabel, FEED_RULES, SOURCES, FLUSH } from './feeding.js'
 import { feedingPlan, fertilizeDaysLeft, flushPlan, flushDaysLeft } from './schedule.js'
 import { setCustomCatalog, getCatalogPlant } from './catalog.js'
 
-const LAT = 20.6 // Querétaro: northern hemisphere
+const LAT = 20.6   // Querétaro: subtropical north — winter feeds slow down
+const COLD = 41.9  // Chicago: temperate north — winter feeds stop
 const at = iso => { vi.useFakeTimers(); vi.setSystemTime(new Date(`${iso}T12:00:00`)) }
 afterEach(() => { vi.useRealTimers(); setCustomCatalog([]) })
 
@@ -64,7 +65,7 @@ describe('feeding schedule', () => {
 
   it('a feed that fell due before the season ended waits for March, not "overdue"', () => {
     at('2026-10-19')
-    const p = feedingPlan(plant('monstera', { lastFertilized: '2026-07-12' }), LAT)
+    const p = feedingPlan(plant('monstera', { lastFertilized: '2026-07-12' }), COLD)
     expect(p.resting).toBe(true)
     expect(p.next).toEqual(new Date(2027, 2, 1))
     expect(p.left).toBeGreaterThan(0)
@@ -72,12 +73,12 @@ describe('feeding schedule', () => {
 
   it('never fed + off season: first feed when the season starts', () => {
     at('2026-12-01')
-    expect(feedingPlan(plant('monstera'), LAT).resting).toBe(true)
+    expect(feedingPlan(plant('monstera'), COLD).resting).toBe(true)
   })
 
   it('a feed landing past September is pushed to March', () => {
     at('2026-09-01')
-    const p = feedingPlan(plant('golden-barrel', { lastFertilized: '2026-08-01' }), LAT)
+    const p = feedingPlan(plant('golden-barrel', { lastFertilized: '2026-08-01' }), COLD)
     expect(p.next).toEqual(new Date(2027, 2, 1))
   })
 
@@ -92,6 +93,28 @@ describe('feeding schedule', () => {
   it('in season and overdue stays overdue', () => {
     at('2026-07-15')
     expect(fertilizeDaysLeft(plant('zinnia', { isOutside: true, lastFertilized: '2026-06-25' }), LAT)).toBe(-6)
+  })
+})
+
+describe('mild winters', () => {
+  it('near the tropics winter feeds are half as often, not stopped', () => {
+    expect(winterFeedDays(FEED_RULES.foliage, LAT)).toBe(120)
+    expect(winterFeedDays(FEED_RULES.foliage, -22)).toBe(120)
+    expect(winterFeedDays(FEED_RULES.foliage, COLD)).toBeNull()
+    expect(winterFeedDays(FEED_RULES.orchid, COLD)).toBe(28)
+  })
+
+  it('a Querétaro monstera fed in July is due in November, not March', () => {
+    at('2026-10-19')
+    const p = feedingPlan(plant('monstera', { lastFertilized: '2026-07-12' }), LAT)
+    expect(p.resting).toBe(false)
+    expect(p.days).toBe(120)
+    expect(p.next).toEqual(new Date(2026, 10, 9))
+  })
+
+  it('labels say what happens in winter', () => {
+    expect(feedScheduleLabel(FEED_RULES.foliage, LAT)).toBe('every 60 days, every 120 in Oct–Feb')
+    expect(feedScheduleLabel(FEED_RULES.foliage, COLD)).toBe('every 60 days, March–September only')
   })
 })
 

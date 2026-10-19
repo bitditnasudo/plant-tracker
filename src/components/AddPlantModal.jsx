@@ -4,7 +4,7 @@ import { formatISO, subDays } from 'date-fns'
 import { useStore } from '../lib/store.jsx'
 import { CATALOG, CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
 import { searchPerenual, fetchPerenualEntry, FREE_TIER_MAX_ID } from '../lib/perenual.js'
-import { feedRule, FEED_SEASON_LABEL } from '../lib/feeding.js'
+import { feedRule, feedScheduleLabel } from '../lib/feeding.js'
 import { PlantIcon } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
 import { POT_MATERIALS, POT_COLORS, BLOOM_COLORS, resolveAppearance } from '../lib/potOptions.js'
@@ -261,7 +261,7 @@ export function AddPlantModal({ onClose }) {
             <span><Sun size={13} /> {LIGHT_LABELS[selected.light]}</span>
             <span><Sparkles size={13} /> {(() => {
               const r = feedRule({ isOutside: !!isOutside }, selected)
-              return `feed every ${r.days}d, ${FEED_SEASON_LABEL(state.settings.location?.lat)}`
+              return `feed ${feedScheduleLabel(r, state.settings.location?.lat)}`
             })()}</span>
           </div>
 

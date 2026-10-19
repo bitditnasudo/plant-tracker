@@ -7,7 +7,7 @@ import {
   waterDaysLeft, mistDaysLeft, feedingPlan, flushPlan, daysLeftLabel, waterIntervalDays,
   WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown,
 } from '../lib/schedule.js'
-import { SOURCES, FLUSH, FEED_SEASON_LABEL } from '../lib/feeding.js'
+import { SOURCES, FLUSH, feedScheduleLabel } from '../lib/feeding.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { resizeImage } from '../lib/image.js'
 import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
@@ -208,9 +208,7 @@ export function PlantDetailModal({ plant, onClose }) {
           <CareRow
             icon={<Sparkles size={18} />} left={feed.left}
             next={feed.resting ? `resting until ${format(feed.next, 'd MMM')}` : null}
-            title={feed.rule.winterDays
-              ? <>Feed every <b>{feed.rule.days} days</b>, every {feed.rule.winterDays} in winter</>
-              : <>Feed every <b>{feed.rule.days} days</b>, {FEED_SEASON_LABEL(lat)} only</>}
+            title={<>Feed <b>{feedScheduleLabel(feed.rule, lat)}</b></>}
             action={{ icon: <Sparkles size={15} />, due: 'Feed now', idle: 'Log feed' }}
             onLog={() => markFertilized(plant.id)}
           >

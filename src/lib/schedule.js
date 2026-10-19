@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, addDays, parseISO, formatISO, subDays, format } from 'date-fns'
 import { getCatalogPlant } from './catalog.js'
-import { feedGroup, feedRule, isFeedingSeason, nextSeasonStart, FLUSH, flushRestsInWinter } from './feeding.js'
+import { feedGroup, feedRule, isFeedingSeason, nextSeasonStart, winterFeedDays, FLUSH, flushRestsInWinter } from './feeding.js'
 
 // Rain rules (see README): rain never auto-waters a plant — pots under eaves or
 // dense foliage may stay dry, so the user confirms via the red bubble first.
@@ -221,19 +221,20 @@ export function waterDaysLeft(plant, latitude) {
 /* Feeding follows the plant's cited group rule (feeding.js), not a stored
  * per-species number. Out of season the next feed waits for the season to
  * start again — fertilizer a resting plant can't use stays in the pot as salt.
- * Orchids keep growing through winter, so they slow down instead of stopping. */
+ * Where winter is mild (and for orchids everywhere) it slows down instead. */
 export function feedingPlan(plant, latitude) {
   const cat = getCatalogPlant(plant.catalogId)
   if (!cat) return null
   const today = new Date()
   const rule = feedRule(plant, cat)
   const inSeason = isFeedingSeason(today, latitude)
-  const days = inSeason || rule.winterDays === null ? rule.days : rule.winterDays
+  const winter = winterFeedDays(rule, latitude)
+  const days = inSeason || winter === null ? rule.days : winter
   let next = plant.lastFertilized ? addDays(parseISO(plant.lastFertilized), days) : today
   let resting = false
   // an overdue feed that fell due before the season ended waits too
   const probe = next < today ? today : next
-  if (rule.winterDays === null && !isFeedingSeason(probe, latitude)) {
+  if (winter === null && !isFeedingSeason(probe, latitude)) {
     next = nextSeasonStart(probe, latitude)
     resting = true
   }
