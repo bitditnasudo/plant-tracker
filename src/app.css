@@ -1039,3 +1039,7 @@
   pointer-events: auto; cursor: pointer; border: none; border-radius: var(--radius-pill);
   padding: 3px 9px; font-size: 12px; font-weight: 700; color: #fff; background: #00A86B; box-shadow: var(--shadow-card);
 }
+
+/* Why a feeding/flush schedule is what it is, and where that comes from. */
+.feed-why { margin-top: var(--sp-1); line-height: 1.45; }
+.feed-why a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

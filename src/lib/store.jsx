@@ -61,11 +61,12 @@ const todayIso = () => formatISO(new Date(), { representation: 'date' })
 
 // Care actions: the date field each one moves, and how the toast says it.
 // A care log entry is {id, type, date, at, source?, text?, photoId?}; types
-// are these three plus 'rain', 'note', 'photo' and 'repot'.
+// are these four plus 'rain', 'note', 'photo' and 'repot'.
 export const CARE = {
   water: { field: 'lastWatered', verb: 'Watered' },
   mist:  { field: 'lastMisted', verb: 'Misted' },
   feed:  { field: 'lastFertilized', verb: 'Fed' },
+  flush: { field: 'lastFlushed', verb: 'Flushed' },
 }
 const careEntry = (type, date, extra = {}) => ({ id: crypto.randomUUID(), type, date, at: nowIso(), ...extra })
 
@@ -756,6 +757,7 @@ export function StoreProvider({ children }) {
     markWatered: id => logCare([id], 'water'),
     markMisted: id => logCare([id], 'mist'),
     markFertilized: id => logCare([id], 'feed'),
+    markFlushed: id => logCare([id], 'flush'),
     answerRain: (id, w, outcome) => {
       const plant = latest.current.state.plants.find(pl => pl.id === id)
       if (!plant) return

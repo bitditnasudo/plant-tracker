@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { formatISO, format, parseISO } from 'date-fns'
-import { Droplets, Sun, Sparkles, Trash2, Loader2, Wand2, Wind, CloudRain, StickyNote, Camera, Shovel, X, SlidersHorizontal } from 'lucide-react'
+import { Droplets, Sun, Sparkles, Trash2, Loader2, Wand2, Wind, CloudRain, StickyNote, Camera, Shovel, X, SlidersHorizontal, Waves } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS } from '../lib/catalog.js'
 import {
-  waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, daysLeftLabel, waterIntervalDays,
+  waterDaysLeft, mistDaysLeft, feedingPlan, flushPlan, daysLeftLabel, waterIntervalDays,
   WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown,
 } from '../lib/schedule.js'
+import { SOURCES, FLUSH, FEED_SEASON_LABEL } from '../lib/feeding.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { resizeImage } from '../lib/image.js'
 import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
@@ -20,6 +21,7 @@ const LOG_META = {
   water: { Icon: Droplets, text: e => (e.source === 'rain' ? 'Watered by rain' : 'Watered') },
   mist:  { Icon: Wind, text: () => 'Misted' },
   feed:  { Icon: Sparkles, text: () => 'Fed' },
+  flush: { Icon: Waves, text: () => 'Flushed the soil' },
   rain:  { Icon: CloudRain, text: e => RAIN_COPY[e.source] || 'Rain answered' },
   repot: { Icon: Shovel, text: () => 'Repotted' },
   note:  { Icon: StickyNote, text: e => e.text },
@@ -28,14 +30,15 @@ const LOG_META = {
 
 // One care action row: the same two button styles everywhere — filled when
 // it's due, outline when it isn't — and the overdue count in red.
-function CareRow({ icon, title, left, action, onLog }) {
+function CareRow({ icon, title, left, next, action, onLog, children }) {
   const due = left !== null && left <= 0
   return (
     <div className="list-row">
       <div className="row-icon">{icon}</div>
       <div className="grow">
         {title}
-        <small className={left !== null && left < 0 ? 'due-text' : ''}>Next: {daysLeftLabel(left)}</small>
+        <small className={left !== null && left < 0 ? 'due-text' : ''}>Next: {next || daysLeftLabel(left)}</small>
+        {children}
       </div>
       <button className={`btn btn-sm ${due ? 'btn-primary' : 'btn-secondary'}`} onClick={onLog}>
         {action.icon}{due ? action.due : action.idle}
@@ -130,7 +133,7 @@ function CareHistory({ plant }) {
 }
 
 export function PlantDetailModal({ plant, onClose }) {
-  const { state, icons, model, updatePlant, removePlant, markWatered, markMisted, markFertilized, saveIcon } = useStore()
+  const { state, icons, model, updatePlant, removePlant, markWatered, markMisted, markFertilized, markFlushed, saveIcon } = useStore()
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(null)
   const cat = getCatalogPlant(plant.catalogId)
@@ -139,7 +142,8 @@ export function PlantDetailModal({ plant, onClose }) {
   const lat = state.settings.location?.lat
   const wLeft = waterDaysLeft(plant, lat)
   const mLeft = mistDaysLeft(plant)
-  const fLeft = fertilizeDaysLeft(plant)
+  const feed = feedingPlan(plant, lat)
+  const flush = flushPlan(plant, lat)
   const zone = state.plan.zones.find(z => z.id === plant.zoneId)
   const customIcon = icons[plant.id]
   const geminiKey = state.settings.geminiKey
@@ -202,11 +206,35 @@ export function PlantDetailModal({ plant, onClose }) {
             />
           )}
           <CareRow
-            icon={<Sparkles size={18} />} left={fLeft}
-            title={<>Fertilize every <b>{cat.fertilize} days</b></>}
+            icon={<Sparkles size={18} />} left={feed.left}
+            next={feed.resting ? `resting until ${format(feed.next, 'd MMM')}` : null}
+            title={feed.rule.winterDays
+              ? <>Feed every <b>{feed.rule.days} days</b>, every {feed.rule.winterDays} in winter</>
+              : <>Feed every <b>{feed.rule.days} days</b>, {FEED_SEASON_LABEL(lat)} only</>}
             action={{ icon: <Sparkles size={15} />, due: 'Feed now', idle: 'Log feed' }}
             onLog={() => markFertilized(plant.id)}
-          />
+          >
+            <small className="feed-why">
+              {feed.rule.label}: {feed.rule.why} Use {feed.rule.dose}.{' '}
+              {feed.rule.sources.map((k, i) => (
+                <span key={k}>{i ? ' · ' : 'Source: '}<a href={SOURCES[k].url} target="_blank" rel="noreferrer">{SOURCES[k].label}</a></span>
+              ))}
+            </small>
+          </CareRow>
+          <CareRow
+            icon={<Waves size={18} />} left={flush.left}
+            next={flush.resting ? `waits until ${format(flush.next, 'd MMM')} (too cold to soak a cactus)` : null}
+            title={<>Flush the soil every <b>{flush.days} days</b></>}
+            action={{ icon: <Waves size={15} />, due: 'Flush now', idle: 'Log flush' }}
+            onLog={() => markFlushed(plant.id)}
+          >
+            <small className="feed-why">
+              {FLUSH.why}{' '}
+              {(feed.group === 'orchid' ? FLUSH.orchidSources : FLUSH.sources).map((k, i) => (
+                <span key={k}>{i ? ' · ' : 'Source: '}<a href={SOURCES[k].url} target="_blank" rel="noreferrer">{SOURCES[k].label}</a></span>
+              ))}
+            </small>
+          </CareRow>
           <div className="list-row">
             <div className="row-icon"><Sun size={18} /></div>
             <div className="grow">

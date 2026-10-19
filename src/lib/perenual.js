@@ -82,7 +82,7 @@ export function estimatedEntry({ perenualId, name, latin }) {
     waterSummer: 7,
     waterWinter: 13,
     mist: null,
-    fertilize: 30,
+    fertilize: 30, // unused: feeding.js resolves the cited group rule
     outdoor: true,
     icon: meta.icon,
     details: 'its characteristic foliage',
@@ -133,7 +133,7 @@ export async function fetchPerenualEntry(key, row) {
     waterSummer: summer,
     waterWinter: Math.min(60, Math.round(summer * 1.8)),
     mist: null,
-    fertilize: 30,
+    fertilize: 30, // unused: feeding.js resolves the cited group rule
     // indoor:true species live inside by default; everything else can take rain
     outdoor: d.indoor !== true,
     icon: meta.icon,

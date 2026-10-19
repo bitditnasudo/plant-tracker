@@ -2,7 +2,7 @@ import { CloudRain, Sparkles } from 'lucide-react'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS, WATER_NEED_LABELS, waterNeedLevel } from '../lib/catalog.js'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, daysLeftLabel, needsRainAnswer } from '../lib/schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, daysLeftLabel, needsRainAnswer } from '../lib/schedule.js'
 import { PlantIcon, WateringCan, SprayBottle, WaterNeedIcon, LightIcon } from './PlantIcons.jsx'
 
 function agoLabel(iso) {
@@ -20,7 +20,8 @@ export function PlantCard({ plant, onOpen, onRain, trip }) {
   const lat = state.settings.location?.lat
   const wLeft = waterDaysLeft(plant, lat)
   const mLeft = mistDaysLeft(plant)
-  const fLeft = fertilizeDaysLeft(plant)
+  const fLeft = fertilizeDaysLeft(plant, lat)
+  const flLeft = flushDaysLeft(plant, lat)
   const askRain = needsRainAnswer(plant, weather)
   const customIcon = icons[plant.id]
   const wNeed = waterNeedLevel(cat)
@@ -84,6 +85,10 @@ export function PlantCard({ plant, onOpen, onRain, trip }) {
           )}
           {fLeft !== null && fLeft <= 0 && (
             <div className="plant-meta"><b>Fertilize:</b> <span className="due-text">{daysLeftLabel(fLeft)}</span></div>
+          )}
+          {/* no rail button: a flush is a trip to the sink, logged from the sheet or the bell */}
+          {flLeft !== null && flLeft <= 0 && (
+            <div className="plant-meta"><b>Flush soil:</b> <span className="due-text">{daysLeftLabel(flLeft)}</span></div>
           )}
           {trip && (
             <div className="plant-meta">

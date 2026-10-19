@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronLeft, PencilLine, Wand2, Loader2 } from 'lucide-react'
 import { CATEGORIES, LIGHT_LABELS } from '../lib/catalog.js'
 import { lookupPlantCare } from '../lib/gemini.js'
+import { feedRule, FEED_SEASON_LABEL } from '../lib/feeding.js'
 import { useStore } from '../lib/store.jsx'
 import { PlantIcon, ICON_KEYS } from './PlantIcons.jsx'
 
@@ -28,7 +29,6 @@ export function ManualPlantForm({ onCancel, onCreate }) {
   const [summer, setSummer] = useState(7)
   const [winter, setWinter] = useState(null)   // null = follow the summer figure
   const [mist, setMist] = useState('')
-  const [fertilize, setFertilize] = useState(30)
   const [outdoor, setOutdoor] = useState(false)
   const [icon, setIcon] = useState('leafVine')
   const [details, setDetails] = useState('')
@@ -63,7 +63,6 @@ export function ManualPlantForm({ onCancel, onCreate }) {
         setWinter(Math.max(1, Math.min(120, r.waterWinter)))
       })
       fill('mist', 'misting', () => setMist(r.mistDays ? String(Math.max(1, Math.min(60, r.mistDays))) : ''))
-      fill('feed', 'feeding', () => setFertilize(Math.max(7, Math.min(365, r.fertilizeDays))))
       fill('light', 'light', () => { if (['direct', 'partial', 'shade'].includes(r.light)) setLight(r.light) })
       fill('type', 'type', () => { if (r.category) pickCategory(r.category, false) })
       fill('outdoor', 'indoor/outdoor', () => setOutdoor(!!r.outdoor))
@@ -86,7 +85,6 @@ export function ManualPlantForm({ onCancel, onCreate }) {
     waterSummer: Math.max(1, Math.round(summer)),
     waterWinter: Math.max(1, Math.round(effWinter)),
     mist: mist === '' ? null : Math.max(1, Math.round(+mist)),
-    fertilize: Math.max(7, Math.round(fertilize || 30)),
     outdoor,
     icon,
     // feeds the Gemini icon prompt
@@ -187,9 +185,13 @@ export function ManualPlantForm({ onCancel, onCreate }) {
             value={mist} onChange={e => { setMist(e.target.value); mark('mist') }} />
         </div>
         <div className="field">
-          <label>Feed every … days</label>
-          <input type="number" min="7" max="365" inputMode="numeric" value={fertilize}
-            onChange={e => { setFertilize(+e.target.value || 30); mark('feed') }} />
+          <label>Feeding</label>
+          <p className="muted note-inline">
+            {(() => {
+              const r = feedRule({ isOutside: outdoor }, { name, latin, category, waterSummer: summer })
+              return `Every ${r.days} days, ${FEED_SEASON_LABEL(state.settings.location?.lat)} — the cited rule for a ${r.label.toLowerCase()}.`
+            })()}
+          </p>
         </div>
       </div>
 

@@ -25,7 +25,6 @@ export async function lookupPlantCare(apiKey, { name, latin }) {
       `Do NOT pre-adjust for wind, balconies or exposure — that is applied separately. ` +
       `waterSummer/waterWinter are days between waterings in active growth and dormancy. ` +
       `mistDays is days between mistings, or null if this species does not need misting. ` +
-      `fertilizeDays is days between feeding in the growing season. ` +
       `appearance is a short visual phrase for an illustration. ` +
       `Set confidence to low if you are not sure this exact plant is well known to you.` }] }],
     generationConfig: {
@@ -34,13 +33,13 @@ export async function lookupPlantCare(apiKey, { name, latin }) {
         type: 'OBJECT',
         properties: {
           waterSummer: { type: 'INTEGER' }, waterWinter: { type: 'INTEGER' },
-          mistDays: { type: 'INTEGER', nullable: true }, fertilizeDays: { type: 'INTEGER' },
+          mistDays: { type: 'INTEGER', nullable: true },
           light: { type: 'STRING', enum: ['direct', 'partial', 'shade'] },
           category: { type: 'STRING', enum: ['foliage', 'cactus', 'succulent', 'flower', 'herb', 'tree'] },
           outdoor: { type: 'BOOLEAN' }, appearance: { type: 'STRING' },
           confidence: { type: 'STRING', enum: ['low', 'medium', 'high'] },
         },
-        required: ['waterSummer', 'waterWinter', 'fertilizeDays', 'light', 'category', 'outdoor', 'appearance', 'confidence'],
+        required: ['waterSummer', 'waterWinter', 'light', 'category', 'outdoor', 'appearance', 'confidence'],
       },
     },
   }

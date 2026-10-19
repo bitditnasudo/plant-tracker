@@ -1,19 +1,20 @@
 // Care reminders as Google Calendar events. Google delivers the actual
 // notifications (native push on every signed-in device + email), so the web
 // app needs no backend. One event per plant per care kind — watering, and with
-// settings.calendarCare also misting and feeding — on its next due date,
+// settings.calendarCare also misting, feeding and soil flushes — on its next due date,
 // tagged with extendedProperties so we can update/remove our own events only.
 import { addDays, formatISO } from 'date-fns'
 import { authFetch } from './googleDrive.js'
 import { getCatalogPlant } from './catalog.js'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft } from './schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft } from './schedule.js'
 
 const CAL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
 const KINDS = [
   { kind: 'water', emoji: '💧', verb: 'Water', left: (p, lat) => waterDaysLeft(p, lat), always: true },
   { kind: 'mist',  emoji: '💨', verb: 'Mist',  left: p => mistDaysLeft(p) },
-  { kind: 'feed',  emoji: '🌱', verb: 'Feed',  left: p => fertilizeDaysLeft(p) },
+  { kind: 'feed',  emoji: '🌱', verb: 'Feed',  left: (p, lat) => fertilizeDaysLeft(p, lat) },
+  { kind: 'flush', emoji: '🚿', verb: 'Flush the soil of', left: (p, lat) => flushDaysLeft(p, lat) },
 ]
 
 const pad = n => String(n).padStart(2, '0')

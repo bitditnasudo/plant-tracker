@@ -2,7 +2,8 @@
 // Care values compiled from open horticultural sources (typical household conditions).
 // waterSummer / waterWinter: days between waterings in growing vs dormant season.
 // mist: days between mistings (null = doesn't need misting).
-// fertilize: days between fertilizing during growing season.
+// fertilize: legacy per-species guess, no longer read — feeding follows the
+//   cited plant-group rules in feeding.js (with a winter pause).
 // light: 'direct' | 'partial' | 'shade'
 // outdoor: can live outside (rain can count toward its watering).
 // icon: id of a built-in stylized icon in PlantIcons.jsx

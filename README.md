@@ -53,8 +53,8 @@ all your data, and app version info.
 The **＋ button** anchored at the right edge adds a plant from the built-in
 catalogue (~120 species — foliage plants, cacti, succulents, flowering plants,
 herbs & edibles, trees & palms — each with per-season watering intervals,
-light needs, misting and fertilizing schedules, and whether they can live
-outdoors). Category chips filter the grid.
+light needs, misting schedules, and whether they can live outdoors).
+Feeding is not per species — see below. Category chips filter the grid.
 
 **Online catalogue search (optional):** add a free
 [Perenual API key](https://perenual.com) in Account and the Add Plant sheet
@@ -97,6 +97,38 @@ potted lantana daily to every two days in hot dry regions
 and the general container rule of every 1–2 days in summer with wind named as
 an accelerant ([Proven Winners](https://www.provenwinners.com/learn/water-your-way-happy-plants),
 [Old Farmer's Almanac](https://www.almanac.com/how-water-flowers-watering-tips)).
+
+## How feeding and soil flushes are scheduled
+
+No open plant database carries sourced, per-species feeding intervals
+(Perenual has no fertilizer field; Trefle and USDA PLANTS only describe growing
+conditions). What can be cited is university-extension and botanical-garden
+guidance, written per plant group, so `src/lib/feeding.js` maps each plant to a
+group and every rule links its sources on the care sheet:
+
+| Group | Feed every | Out of season | Sources |
+|---|---|---|---|
+| Foliage houseplants, trees & palms | 60 d | paused | [Illinois](https://extension.illinois.edu/houseplants/care), [Iowa State](https://yardandgarden.extension.iastate.edu/faq/should-houseplants-be-fertilized-winter) |
+| Slow foliage (snake plant, ZZ…) | 90 d | paused | same |
+| Flowering houseplants (indoors) | 30 d | paused | same |
+| Bloomers & fruiting edibles in outdoor pots | 14 d | paused | [Nebraska](https://extension.unl.edu/statewide/platte/Horticulture/24%20June%203%20Care%20of%20Annual%20Flowers%20to%20Promote%20Season%20Long%20Blooming.pdf), [Kentucky](https://daviess.ca.uky.edu/sites/daviess.ca.uky.edu/files/20230408%20Flowering%20plants%20and%20containers.pdf) |
+| Herbs | 42 d | paused | [Ask Extension](https://ask2.extension.org/kb/faq.php?id=753082) |
+| Desert cacti | 90 d | paused | [UMN](https://extension.umn.edu/houseplants/cacti-and-succulents), [Missouri BG](https://www.missouribotanicalgarden.org/Portals/0/Gardening/Gardening%20Help/Factsheets/Cactus%20and%20Succulents10.pdf) |
+| Succulents | 60 d | paused | same |
+| Holiday cacti | 30 d | paused | [UF/IFAS](https://blogs.ifas.ufl.edu/flaglerco/2023/11/20/a-guide-to-holiday-cacti-care-the-basics-pt-1/) |
+| Orchids | 14 d, quarter strength | every 28 d | [AOS](https://www.aos.org/orchids/articles/fertilize-weakly-weekly), [NYBG](https://libanswers.nybg.org/faq/223105) |
+
+The feeding season is March–September (mirrored south of the equator). A feed
+that falls due outside it waits until 1 March instead of showing as overdue,
+since fertilizer a resting plant can't use stays in the pot as salt. The group
+is resolved when the schedule is read, so nothing is stored per plant and the
+old per-species `fertilize` numbers are ignored.
+
+**Soil flush:** every 120 days (orchids every 30) the app asks you to run plain
+water through the pot to wash out fertilizer salts (Illinois Extension: every
+4–6 months). Plants that have never been flushed are due immediately; new
+plants start the clock on the day they're added. Cacti and succulents wait for
+the growing season rather than getting a deep soak while dormant.
 
 ## How rain affects watering
 
@@ -179,7 +211,7 @@ How it behaves:
 
 **Care reminders (Google Calendar):** with Drive connected, Account →
 "Calendar reminders" creates one event per plant on its next watering date
-(and optionally misting and feeding dates) at the hour you choose, in your
+(and optionally misting, feeding and soil-flush dates) at the hour you choose, in your
 primary Google Calendar, with a popup notification on every signed-in device
 plus an email reminder from Google. Overdue plants are reminded at the next
 full hour instead of on a time that has already passed.
@@ -203,7 +235,8 @@ src/
   lib/
     catalog.js     — bundled plant catalogue (care data from open sources)
     perenual.js    — online species search (Perenual API → catalogue schema)
-    schedule.js    — watering/misting/fertilizing math + rain rules (+ tests)
+    schedule.js    — watering/misting/feeding/flush math + rain rules (+ tests)
+    feeding.js     — cited feeding & flush rules per plant group (+ tests)
     merge.js       — multi-device merge: field stamps, care log, import (+ tests)
     weather.js     — Open-Meteo client (forecast, daily rain, geocoding)
     planFile.js    — PDF (pdf.js) / SVG / image → raster plan converter

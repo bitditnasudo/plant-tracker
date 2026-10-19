@@ -1,5 +1,6 @@
 import { differenceInCalendarDays, addDays, parseISO, formatISO, subDays, format } from 'date-fns'
 import { getCatalogPlant } from './catalog.js'
+import { feedGroup, feedRule, isFeedingSeason, nextSeasonStart, FLUSH, flushRestsInWinter } from './feeding.js'
 
 // Rain rules (see README): rain never auto-waters a plant — pots under eaves or
 // dense foliage may stay dry, so the user confirms via the red bubble first.
@@ -217,10 +218,56 @@ export function waterDaysLeft(plant, latitude) {
   return left
 }
 
-export function fertilizeDaysLeft(plant) {
+/* Feeding follows the plant's cited group rule (feeding.js), not a stored
+ * per-species number. Out of season the next feed waits for the season to
+ * start again — fertilizer a resting plant can't use stays in the pot as salt.
+ * Orchids keep growing through winter, so they slow down instead of stopping. */
+export function feedingPlan(plant, latitude) {
   const cat = getCatalogPlant(plant.catalogId)
   if (!cat) return null
-  return daysUntil(plant.lastFertilized, cat.fertilize)
+  const today = new Date()
+  const rule = feedRule(plant, cat)
+  const inSeason = isFeedingSeason(today, latitude)
+  const days = inSeason || rule.winterDays === null ? rule.days : rule.winterDays
+  let next = plant.lastFertilized ? addDays(parseISO(plant.lastFertilized), days) : today
+  let resting = false
+  // an overdue feed that fell due before the season ended waits too
+  const probe = next < today ? today : next
+  if (rule.winterDays === null && !isFeedingSeason(probe, latitude)) {
+    next = nextSeasonStart(probe, latitude)
+    resting = true
+  }
+  return {
+    group: feedGroup(plant, cat), rule, days, inSeason, resting,
+    next, left: differenceInCalendarDays(next, today),
+  }
+}
+
+export function fertilizeDaysLeft(plant, latitude) {
+  return feedingPlan(plant, latitude)?.left ?? null
+}
+
+/* Soil flush: plain water through the pot to wash out fertilizer salts.
+ * Plants that never had one are due now. Cacti and succulents wait for the
+ * growing season — a deep soak on a dormant cactus invites rot. */
+export function flushPlan(plant, latitude) {
+  const cat = getCatalogPlant(plant.catalogId)
+  if (!cat) return null
+  const today = new Date()
+  const group = feedGroup(plant, cat)
+  const days = group === 'orchid' ? FLUSH.orchidDays : FLUSH.days
+  let next = plant.lastFlushed ? addDays(parseISO(plant.lastFlushed), days) : today
+  let resting = false
+  const probe = next < today ? today : next
+  if (flushRestsInWinter(group) && !isFeedingSeason(probe, latitude)) {
+    next = nextSeasonStart(probe, latitude)
+    resting = true
+  }
+  return { days, resting, next, left: differenceInCalendarDays(next, today) }
+}
+
+export function flushDaysLeft(plant, latitude) {
+  return flushPlan(plant, latitude)?.left ?? null
 }
 
 export function mistDaysLeft(plant) {

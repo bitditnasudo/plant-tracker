@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus } from 'lucide-react'
+import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, Waves } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { PlantCard } from '../components/PlantCard.jsx'
 import { RainModal } from '../components/RainModal.jsx'
@@ -46,10 +46,11 @@ export default function Dashboard({ onAdd }) {
   const lat = state.settings.location?.lat
 
   // what's actually due today, straight from the schedule
-  const { dueWater, dueMist, dueFeed, dueCombo, dueRain, urgency } = useMemo(() => {
+  const { dueWater, dueMist, dueFeed, dueFlush, dueCombo, dueRain, urgency } = useMemo(() => {
     const water = []
     const mist = []
     const feed = []
+    const flush = []
     const rain = []
     const urgency = new Map() // plantId -> most overdue chore (≤0 means needs care today)
     for (const plant of state.plants) {
@@ -59,11 +60,13 @@ export default function Dashboard({ onAdd }) {
       if (w <= 0) water.push({ plant, cat, left: w })
       const m = mistDaysLeft(plant)
       if (m !== null && m <= 0) mist.push({ plant, cat, left: m })
-      const f = fertilizeDaysLeft(plant)
+      const f = fertilizeDaysLeft(plant, lat)
       if (f !== null && f <= 0) feed.push({ plant, cat, left: f })
+      const fl = flushDaysLeft(plant, lat)
+      if (fl !== null && fl <= 0) flush.push({ plant, cat, left: fl })
       const askRain = needsRainAnswer(plant, weather)
       if (askRain) rain.push({ plant, cat, left: 0 })
-      urgency.set(plant.id, Math.min(w, m ?? Infinity, f ?? Infinity, askRain ? 0 : Infinity))
+      urgency.set(plant.id, Math.min(w, m ?? Infinity, f ?? Infinity, fl ?? Infinity, askRain ? 0 : Infinity))
     }
     const byUrgency = (a, b) => a.left - b.left
     // Watering and feeding happen in the same trip to the sink, so a plant due
@@ -91,6 +94,7 @@ export default function Dashboard({ onAdd }) {
       dueWater: water.filter(w => !inCombo.has(w.plant.id)).sort(byUrgency),
       dueMist: mist.sort(byUrgency),
       dueFeed: feed.filter(f => !inCombo.has(f.plant.id)).sort(byUrgency),
+      dueFlush: flush.sort(byUrgency),
       dueCombo: combo.sort(byUrgency),
       dueRain: rain,
       urgency,
@@ -105,8 +109,9 @@ export default function Dashboard({ onAdd }) {
     { key: 'water', label: 'Water', items: dueWater, Art: WateringCan, type: 'water', verb: 'watering' },
     { key: 'mist',  label: 'Mist',  items: dueMist,  Art: SprayBottle, type: 'mist',  verb: 'misting' },
     { key: 'feed',  label: 'Feed',  items: dueFeed,  Art: null,        type: 'feed',  verb: 'feeding' },
+    { key: 'flush', label: 'Flush', items: dueFlush, Art: null,        type: 'flush', verb: 'soil flush', Icon: Waves },
     { key: 'rain',  label: 'Rain',  items: dueRain,  Art: null,        type: null,    verb: 'rain' },
-  ], [dueCombo, dueWater, dueMist, dueFeed, dueRain])
+  ], [dueCombo, dueWater, dueMist, dueFeed, dueFlush, dueRain])
 
   // once both halves are logged the row drops out of Combo — forget its pin so
   // a later water-only (or feed-only) day lists it under the right tab
@@ -120,7 +125,7 @@ export default function Dashboard({ onAdd }) {
 
   const pinCombo = id => setComboPins(prev => prev.has(id) ? prev : new Set(prev).add(id))
 
-  const totalDue = dueCombo.length + dueWater.length + dueMist.length + dueFeed.length + dueRain.length
+  const totalDue = dueCombo.length + dueWater.length + dueMist.length + dueFeed.length + dueFlush.length + dueRain.length
   // Only chores with something waiting get a tab — five fixed tabs made the
   // strip too tight on a phone. If the open tab empties (its last plant was
   // just logged) the next non-empty one takes over.
@@ -329,7 +334,7 @@ export default function Dashboard({ onAdd }) {
                           title={`Log ${activeTab.verb}`}
                           onClick={e => { e.stopPropagation(); logCare([plant.id], activeTab.type) }}
                         >
-                          {activeTab.Art ? <activeTab.Art /> : <Sparkles />}
+                          {activeTab.Art ? <activeTab.Art /> : activeTab.Icon ? <activeTab.Icon /> : <Sparkles />}
                         </button>
                       )}
                     </div>
