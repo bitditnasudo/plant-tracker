@@ -75,8 +75,9 @@ down ([UConn](https://extension.uconn.edu/2013/12/24/watering-houseplants/),
 [Iowa State](https://yardandgarden.extension.iastate.edu/faq/how-often-should-houseplants-be-watered-during-winter-months);
 [Illinois](https://extension.illinois.edu/houseplants/watering) says two
 inches, and that wilting can mean over-watering too). So the interval is when
-to check: reminders and the care sheet say so, and "Still damp — check
-tomorrow" pushes the check a day without logging a watering.
+to check: reminders, cards and the care sheet say so, and "Still damp — check
+tomorrow" (on the care sheet, or the clock button in the bell's Water tab)
+pushes the check a day without logging a watering.
 
 **Summer or winter is decided by the weather, not the month.** Each species
 has a summer and a winter interval (bundled catalogue figures, or Perenual's
@@ -88,8 +89,9 @@ most evaporative month over the past 12 months, from the archive API, cached
 for 30 days) and the interval slides in proportion. In Querétaro that range
 runs from about 3.4 mm/day (December) to 6.9 (April), so the hot, dry March
 counts as near-summer and the cloudy rainy season sits in between — the old
-April–September calendar had both backwards. With no location or no data
-yet, the calendar is the fallback; where the year is flatter than 0.5 mm/day
+April–September calendar had both backwards. Only the last 10 days of
+weather count; without them (offline, first launch) this month's usual
+evaporation stands in, and with no climate data at all the calendar does; where the year is flatter than 0.5 mm/day
 the growing-season figure applies. ET0 is an outdoor measure, so for indoor
 plants it stands in for the season, damped by the room.
 

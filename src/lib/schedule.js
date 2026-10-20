@@ -187,11 +187,15 @@ export const ET0_MIN_RANGE_MM = 0.5 // a flatter year than this has no dry seaso
 let et0Climate = null
 export function setEt0Climate(c) { et0Climate = c || null }
 
-// Mean ET0 over the last measured days (forecast days excluded).
+// Mean ET0 over the last measured days (forecast days excluded). Only days
+// from the past week and a bit count: after a long spell offline the log
+// holds old weather, and an old heatwave must not keep shortening intervals.
+export const ET0_MAX_AGE_DAYS = 10
 export function recentEt0(days = ET0_RECENT_DAYS) {
   const today = formatISO(new Date(), { representation: 'date' })
+  const oldest = formatISO(subDays(new Date(), ET0_MAX_AGE_DAYS), { representation: 'date' })
   const vals = Object.keys(windLog).sort()
-    .filter(d => d < today)
+    .filter(d => d < today && d >= oldest)
     .map(d => windLog[d]?.et0)
     .filter(v => typeof v === 'number')
     .slice(-days)
@@ -200,16 +204,25 @@ export function recentEt0(days = ET0_RECENT_DAYS) {
 }
 
 // 0 = this location's least drying conditions (winter figure), 1 = its most
-// drying (summer figure). Falls back to the calendar without weather data.
+// drying (summer figure). Without a recent week of weather (offline, or the
+// first launch) it uses what this month is usually like here; with no
+// climate data at all, the calendar.
 export function dryingFactor(latitude) {
-  const recent = recentEt0()
   const c = et0Climate
-  if (recent !== null && c && typeof c.low === 'number' && typeof c.high === 'number') {
+  if (c && typeof c.low === 'number' && typeof c.high === 'number') {
     if (c.high - c.low < ET0_MIN_RANGE_MM) {
-      return { factor: 1, source: 'flat', recent, low: c.low, high: c.high }
+      return { factor: 1, source: 'flat', recent: recentEt0(), low: c.low, high: c.high }
     }
-    const factor = Math.min(1, Math.max(0, (recent - c.low) / (c.high - c.low)))
-    return { factor, source: 'et0', recent, low: c.low, high: c.high }
+    let recent = recentEt0()
+    let source = 'et0'
+    if (recent === null) {
+      recent = c.monthly?.[String(new Date().getMonth() + 1).padStart(2, '0')] ?? null
+      source = 'month'
+    }
+    if (recent !== null) {
+      const factor = Math.min(1, Math.max(0, (recent - c.low) / (c.high - c.low)))
+      return { factor, source, recent, low: c.low, high: c.high }
+    }
   }
   const factor = isGrowingSeason(new Date(), latitude) ? 1 : 0
   return { factor, source: 'calendar', recent: null, low: null, high: null }

@@ -140,7 +140,7 @@ export default function Onboarding() {
               <div className="row-icon icon-lead"><MapPin size={30} /></div>
               <h2 className="ob-mark">Where are your plants?</h2>
               <p className="muted prose-tight center ob-lead">
-                Your location powers the weather card, the rain check for outdoor plants and the feeding calendar. It never leaves this device.
+                Your location powers the weather card, the rain check for outdoor plants and the watering and feeding calendars. It's only sent to Open-Meteo for weather, and synced to your own Google Drive if you connect it.
               </p>
             </div>
             <button className={`btn btn-block ${state.settings.location ? 'btn-soft' : 'btn-primary'}`} onClick={useGPS} disabled={busy}>

@@ -272,16 +272,16 @@ export function StoreProvider({ children }) {
     const c = loadEt0Climate()
     const near = c && Math.abs(c.lat - location.lat) < 0.1 && Math.abs(c.lon - location.lon) < 0.1
     if (near && Date.now() - c.fetchedAt < ET0_CLIMATE_MAX_AGE_MS) return
+    // a move (here or synced from another device) must not use the old
+    // place's range while the new one loads — the calendar covers the gap
+    if (!near) { setEt0Climate(null); setEt0ClimateState(null) }
     let alive = true
     fetchEt0Climate(location).then(next => {
       if (!alive) return
       try { localStorage.setItem(ET0_CLIMATE_KEY, JSON.stringify(next)) } catch {}
       setEt0Climate(next)
       setEt0ClimateState(next)
-    }).catch(() => {
-      // a moved location must not keep using the old place's range
-      if (alive && !near) { setEt0Climate(null); setEt0ClimateState(null) }
-    })
+    }).catch(() => {}) // offline: a stale range for the same place is still the best guess
     return () => { alive = false }
   }, [location?.lat, location?.lon])
 

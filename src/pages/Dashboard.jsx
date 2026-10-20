@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, Waves } from 'lucide-react'
+import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, Waves, Clock3 } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
 import { getCatalogPlant } from '../lib/catalog.js'
@@ -31,7 +31,7 @@ const SORTS = {
 }
 
 export default function Dashboard({ onAdd }) {
-  const { state, weather, setSettings, logCare, logCareJobs, tripOpen, setTripOpen } = useStore()
+  const { state, weather, windLog, et0Climate, setSettings, logCare, logCareJobs, markStillDamp, tripOpen, setTripOpen } = useStore()
   const [query, setQuery] = useState('')
   const [rainPlant, setRainPlant] = useState(null)
   const [detailPlant, setDetailPlant] = useState(null)
@@ -99,7 +99,9 @@ export default function Dashboard({ onAdd }) {
       dueRain: rain,
       urgency,
     }
-  }, [state.plants, lat, weather, comboPins])
+  // windLog / et0Climate: the schedule module reads them, so a weather or
+  // climate update must recompute what's due even when no plant changed
+  }, [state.plants, lat, weather, windLog, et0Climate, comboPins])
 
   const tripNeeds = useTripNeeds()
   const tripFilter = tripOpen && tripNeeds.size > 0
@@ -302,6 +304,7 @@ export default function Dashboard({ onAdd }) {
                               })()
                             : activeTab.key === 'combo'
                               ? `${waterDone ? 'Watered · feed left' : feedDone ? 'Fed · water left' : 'Water + feed'} · ${left < 0 ? `${-left}d overdue` : 'today'}`
+                            : activeTab.key === 'water' ? `Check the soil · ${dueLabel(left).toLowerCase()}`
                             : dueLabel(left)}
                         </div>
                       </div>
@@ -326,6 +329,17 @@ export default function Dashboard({ onAdd }) {
                             {feedDone ? <Check /> : <Sparkles />}
                           </button>
                         </>
+                      )}
+                      {/* a soil check can end in "not yet": snooze to tomorrow, no watering logged */}
+                      {activeTab.key === 'water' && (
+                        <button
+                          className="n-log n-log-feed"
+                          aria-label={`Still damp: check ${plant.nickname || cat?.name} again tomorrow`}
+                          title="Still damp — check tomorrow"
+                          onClick={e => { e.stopPropagation(); markStillDamp(plant.id) }}
+                        >
+                          <Clock3 />
+                        </button>
                       )}
                       {activeTab.type && (
                         <button

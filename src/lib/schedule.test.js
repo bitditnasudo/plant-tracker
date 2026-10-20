@@ -92,6 +92,21 @@ describe('weather-driven season (ET0)', () => {
     expect(baseIntervalDays(plant(), 20.6)).toBe(8)
   })
 
+  it('old weather from a spell offline is ignored, and the usual month stands in', () => {
+    setEt0Climate({ ...QRO, monthly: { '07': 4.0 } })
+    setWindLog(Object.fromEntries(['2026-06-20', '2026-06-21', '2026-06-22', '2026-06-23'].map(d => [d, { et0: 9 }])))
+    expect(recentEt0()).toBeNull()
+    const d = dryingFactor(20.6)
+    expect(d.source).toBe('month')
+    expect(d.recent).toBe(4.0)
+    expect(baseIntervalDays(plant(), 20.6)).toBe(11)
+  })
+
+  it('no recent weather and no month on record falls back to the calendar', () => {
+    setEt0Climate({ ...QRO, monthly: {} })
+    expect(dryingFactor(40).source).toBe('calendar')
+  })
+
   it('clamps beyond the yearly range', () => {
     setEt0Climate(QRO)
     setWindLog(et0Week(9))

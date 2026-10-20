@@ -18,7 +18,7 @@ const fmt = d => format(parseISO(d), 'EEE d MMM')
 
 // Plants that need a watering right before the planned trip (computed, never stored).
 export function useTripNeeds() {
-  const { state } = useStore()
+  const { state, windLog, et0Climate } = useStore()
   const trip = state.settings.trip
   const lat = state.settings.location?.lat
   return useMemo(() => {
@@ -30,7 +30,7 @@ export function useTripNeeds() {
       if (n) m.set(p.id, n)
     }
     return m
-  }, [state.plants, lat, trip])
+  }, [state.plants, lat, trip, windLog, et0Climate]) // intervals follow the weather
 }
 
 export function WeatherCard({ docked = false }) {

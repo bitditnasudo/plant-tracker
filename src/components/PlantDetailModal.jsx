@@ -372,6 +372,12 @@ export function PlantDetailModal({ plant, onClose }) {
                     {' '}that runs from {b.drying.low.toFixed(1)} to {b.drying.high.toFixed(1)} mm/day — <b>{Math.round(b.drying.factor * 100)}%</b> of
                     {' '}the way to the driest — so the species interval is <b>{b.base} days</b></>
                 )}
+                {b.drying.source === 'month' && (
+                  <>This species is watered every {b.summer} days in the most drying weather and every {b.winter} in the least.
+                    {' '}There’s no recent weather yet, so this month’s usual evaporation here (<b>{b.drying.recent.toFixed(1)} mm/day</b>,
+                    {' '}on a year from {b.drying.low.toFixed(1)} to {b.drying.high.toFixed(1)}) stands in — <b>{Math.round(b.drying.factor * 100)}%</b> of
+                    {' '}the way to the driest, so <b>{b.base} days</b></>
+                )}
                 {b.drying.source === 'flat' && (
                   <>Evaporation here barely changes through the year, so the species’ growing-season interval applies: <b>{b.base} days</b></>
                 )}

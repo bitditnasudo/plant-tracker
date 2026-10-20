@@ -76,7 +76,7 @@ export function PlantCard({ plant, onOpen, onRain, trip }) {
         <div className="plant-sched">
           <div className="plant-meta"><b>Last Watered:</b> <span>{agoLabel(plant.lastWatered)}</span></div>
           <div className="plant-meta">
-            <b>Next Water:</b>{' '}
+            <b>Soil check:</b>{' '}
             <span className={wLeft <= 0 ? 'due-text' : ''}>{daysLeftLabel(wLeft)}</span>
           </div>
           {/* the same overdue count the bell shows, not a flat "Today" */}
