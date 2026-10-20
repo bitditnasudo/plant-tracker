@@ -6,12 +6,14 @@
 import { addDays, formatISO } from 'date-fns'
 import { authFetch } from './googleDrive.js'
 import { getCatalogPlant } from './catalog.js'
-import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft } from './schedule.js'
+import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, SOIL_CHECK } from './schedule.js'
 
 const CAL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
 const KINDS = [
-  { kind: 'water', emoji: '💧', verb: 'Water', left: (p, lat) => waterDaysLeft(p, lat), always: true },
+  // a watering reminder is a soil check: the sources say feel first, then pour
+  { kind: 'water', emoji: '💧', verb: 'Check the soil of', left: (p, lat) => waterDaysLeft(p, lat), always: true,
+    note: `${SOIL_CHECK.how} Log it in the app: watered, or still damp.` },
   { kind: 'mist',  emoji: '💨', verb: 'Mist',  left: p => mistDaysLeft(p) },
   { kind: 'feed',  emoji: '🌱', verb: 'Feed',  left: (p, lat) => fertilizeDaysLeft(p, lat) },
   { kind: 'flush', emoji: '🚿', verb: 'Flush the soil of', left: (p, lat) => flushDaysLeft(p, lat) },
@@ -95,7 +97,7 @@ export async function syncCalendarReminders(plants, settings = {}) {
       const end = new Date(start.getTime() + 30 * 60 * 1000)
       const body = {
         summary: `${k.emoji} ${k.verb} ${name}`,
-        description: 'Plant Tracker reminder — open the app and log it when done.',
+        description: k.note ? `Plant Tracker reminder — ${k.note}` : 'Plant Tracker reminder — open the app and log it when done.',
         start: { dateTime: localDateTime(start), timeZone: tz },
         end: { dateTime: localDateTime(end), timeZone: tz },
         reminders: {

@@ -3,6 +3,7 @@ import {
   setWindLog, avgWindSince, windTierFor, windAdjustment, MAX_WIND_CUT,
   isGrowingSeason, potCappedBase, waterIntervalDays, waterDaysLeft,
   pendingRain, needsRainAnswer, applyRainAnswer, RAIN_OUTCOME, tripNeed,
+  setEt0Climate, recentEt0, dryingFactor, baseIntervalDays, intervalBreakdown,
 } from './schedule.js'
 import { reminderStart } from './calendarSync.js'
 
@@ -13,6 +14,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date(`${TODAY}T12:00:00`))
   setWindLog({})
+  setEt0Climate(null)
 })
 afterEach(() => vi.useRealTimers())
 
@@ -49,6 +51,89 @@ describe('wind', () => {
     const adj = windAdjustment(plant({ isOutside: true, lastWatered: '2026-07-13', windSensitivityOverride: 'high' }))
     expect(adj.cut).toBeLessThanOrEqual(MAX_WIND_CUT)
     expect(adj.cut).toBeCloseTo(0.325 * 1.3)
+  })
+})
+
+// a week of daily ET0 ending yesterday, in the shape the store registers
+const et0Week = mm => Object.fromEntries(
+  ['2026-07-08', '2026-07-09', '2026-07-10', '2026-07-11', '2026-07-12', '2026-07-13', '2026-07-14'].map(d => [d, { max: 5, mean: 3, et0: mm }]),
+)
+const QRO = { lat: 20.6, lon: -100.4, low: 3.41, high: 6.86 } // Querétaro 2025: Dec low, Apr high
+
+describe('weather-driven season (ET0)', () => {
+  it('averages measured days only, never today or the forecast', () => {
+    setWindLog({ ...et0Week(4), '2026-07-15': { et0: 99 }, '2026-07-16': { et0: 99 } })
+    expect(recentEt0()).toBe(4)
+  })
+
+  it('without climate data it falls back to the calendar', () => {
+    setWindLog(et0Week(6))
+    expect(dryingFactor(40).source).toBe('calendar')
+    expect(baseIntervalDays(plant(), 40)).toBe(7) // July, north: summer figure
+  })
+
+  it('slides between the winter and summer interval by evaporation', () => {
+    setEt0Climate(QRO)
+    // monstera: summer 7, winter 12
+    setWindLog(et0Week(6.86))
+    expect(baseIntervalDays(plant(), 20.6)).toBe(7)
+    setWindLog(et0Week(3.41))
+    expect(baseIntervalDays(plant(), 20.6)).toBe(12)
+    setWindLog(et0Week(5.135)) // halfway
+    expect(dryingFactor(20.6).factor).toBeCloseTo(0.5, 2)
+    expect(baseIntervalDays(plant(), 20.6)).toBe(10) // 9.5 rounds up
+  })
+
+  it('a hot dry March counts as summer even though the calendar says winter', () => {
+    vi.setSystemTime(new Date('2026-03-20T12:00:00'))
+    setEt0Climate(QRO)
+    setWindLog(Object.fromEntries(['2026-03-13', '2026-03-14', '2026-03-15', '2026-03-16', '2026-03-17', '2026-03-18', '2026-03-19'].map(d => [d, { et0: 6.3 }])))
+    expect(isGrowingSeason(new Date(), 20.6)).toBe(false)
+    expect(baseIntervalDays(plant(), 20.6)).toBe(8)
+  })
+
+  it('clamps beyond the yearly range', () => {
+    setEt0Climate(QRO)
+    setWindLog(et0Week(9))
+    expect(dryingFactor(20.6).factor).toBe(1)
+    setWindLog(et0Week(1))
+    expect(dryingFactor(20.6).factor).toBe(0)
+  })
+
+  it('a year with no dry season uses the growing-season figure', () => {
+    setEt0Climate({ lat: 1.3, lon: 103.8, low: 4.0, high: 4.3 })
+    setWindLog(et0Week(4.1))
+    expect(dryingFactor(1.3).source).toBe('flat')
+    expect(baseIntervalDays(plant(), 1.3)).toBe(7)
+  })
+
+  it('the outdoor pot cap relaxes with the weather, up to double', () => {
+    setEt0Climate(QRO)
+    const hot = plant({ isOutside: true, windSensitivityOverride: 'high' })
+    setWindLog(et0Week(6.86))
+    expect(potCappedBase(hot, 20.6)).toBe(4)
+    setWindLog(et0Week(3.41))
+    expect(potCappedBase(hot, 20.6)).toBe(8)
+  })
+
+  it('the breakdown explains the slide', () => {
+    setEt0Climate(QRO)
+    setWindLog(et0Week(6.86))
+    const b = intervalBreakdown(plant(), 20.6)
+    expect(b.drying.source).toBe('et0')
+    expect([b.summer, b.winter, b.base]).toEqual([7, 12, 7])
+  })
+})
+
+describe('soil check', () => {
+  it('"still damp" pushes the check to tomorrow', () => {
+    const due = plant({ lastWatered: '2026-07-01' }) // 7-day monstera: overdue
+    expect(waterDaysLeft(due, 40)).toBeLessThan(0)
+    expect(waterDaysLeft({ ...due, dampOn: TODAY }, 40)).toBe(1)
+  })
+
+  it('a damp check from before the last watering is ignored', () => {
+    expect(waterDaysLeft(plant({ lastWatered: TODAY, dampOn: '2026-07-10' }), 40)).toBe(7)
   })
 })
 

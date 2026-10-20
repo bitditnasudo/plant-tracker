@@ -1043,3 +1043,4 @@
 /* Why a feeding/flush schedule is what it is, and where that comes from. */
 .feed-why { margin-top: var(--sp-1); line-height: 1.45; }
 .feed-why a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.damp-btn { display: block; margin-top: var(--sp-1); font-size: var(--fs-xs); }

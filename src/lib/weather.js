@@ -41,7 +41,7 @@ export async function fetchWeather({ lat, lon }) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m` +
     `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min` +
-    `,wind_speed_10m_max,wind_speed_10m_mean` +
+    `,wind_speed_10m_max,wind_speed_10m_mean,et0_fao_evapotranspiration` +
     `&past_days=${WIND_HISTORY_DAYS}&forecast_days=2&timezone=auto`
   const res = await fetch(url)
   if (!res.ok) throw new Error('Weather request failed')
@@ -63,14 +63,18 @@ export async function fetchWeather({ lat, lon }) {
     rainDaily[d.daily.time[i]] = d.daily.precipitation_sum?.[i] ?? 0
   }
 
-  // daily wind history: { 'YYYY-MM-DD': { max, mean } }, both km/h
+  // daily history: { 'YYYY-MM-DD': { max, mean, et0 } } — wind in km/h;
+  // et0 is FAO-56 reference evapotranspiration in mm, the standard measure of
+  // how hard that day's sun, heat, dry air and wind pulled water out
   const windDaily = {}
   d.daily.time.forEach((day, i) => {
     const max = d.daily.wind_speed_10m_max?.[i]
     const mean = d.daily.wind_speed_10m_mean?.[i]
-    if (typeof max === 'number' || typeof mean === 'number') {
-      windDaily[day] = { max: max ?? mean, mean: mean ?? max }
-    }
+    const et0 = d.daily.et0_fao_evapotranspiration?.[i]
+    const entry = {}
+    if (typeof max === 'number' || typeof mean === 'number') Object.assign(entry, { max: max ?? mean, mean: mean ?? max })
+    if (typeof et0 === 'number') entry.et0 = et0
+    if (Object.keys(entry).length) windDaily[day] = entry
   })
 
   return {
@@ -89,6 +93,35 @@ export async function fetchWeather({ lat, lon }) {
     yesterdayRainMm: yIdx >= 0 ? (d.daily.precipitation_sum[yIdx] ?? 0) : 0,
     rainDaily,
   }
+}
+
+/* The location's own evaporation year: mean daily ET0 for each of the past 12
+ * months, from Open-Meteo's historical archive. Its lowest and highest month
+ * are what "winter" and "summer" mean for watering here — in Querétaro the
+ * driest stretch is March–May, not the calendar's April–September. The
+ * archive lags a few days, so the window ends a week ago. */
+export async function fetchEt0Climate({ lat, lon }) {
+  const end = formatISO(subDays(new Date(), 7), { representation: 'date' })
+  const start = formatISO(subDays(new Date(), 372), { representation: 'date' })
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}` +
+    `&start_date=${start}&end_date=${end}&daily=et0_fao_evapotranspiration&timezone=auto`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Climate request failed')
+  const d = await res.json()
+  const sums = {}
+  d.daily.time.forEach((day, i) => {
+    const v = d.daily.et0_fao_evapotranspiration?.[i]
+    if (typeof v !== 'number') return
+    const m = day.slice(5, 7)
+    sums[m] = sums[m] || { t: 0, n: 0 }
+    sums[m].t += v
+    sums[m].n += 1
+  })
+  // a month needs most of its days to count
+  const monthly = Object.fromEntries(Object.entries(sums).filter(([, v]) => v.n >= 10).map(([m, v]) => [m, v.t / v.n]))
+  const vals = Object.values(monthly)
+  if (vals.length < 10) throw new Error('Not enough climate data')
+  return { lat, lon, fetchedAt: Date.now(), monthly, low: Math.min(...vals), high: Math.max(...vals) }
 }
 
 export function getBrowserLocation() {

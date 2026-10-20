@@ -5,7 +5,7 @@ import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS } from '../lib/catalog.js'
 import {
   waterDaysLeft, mistDaysLeft, feedingPlan, flushPlan, daysLeftLabel, waterIntervalDays,
-  WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown,
+  WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown, SOIL_CHECK,
 } from '../lib/schedule.js'
 import { SOURCES, FLUSH, feedScheduleLabel, winterNote } from '../lib/feeding.js'
 import { generatePlantIcon } from '../lib/gemini.js'
@@ -22,6 +22,7 @@ const LOG_META = {
   mist:  { Icon: Wind, text: () => 'Misted' },
   feed:  { Icon: Sparkles, text: () => 'Fed' },
   flush: { Icon: Waves, text: () => 'Flushed the soil' },
+  check: { Icon: Droplets, text: () => 'Checked the soil — still damp' },
   rain:  { Icon: CloudRain, text: e => RAIN_COPY[e.source] || 'Rain answered' },
   repot: { Icon: Shovel, text: () => 'Repotted' },
   note:  { Icon: StickyNote, text: e => e.text },
@@ -133,7 +134,7 @@ function CareHistory({ plant }) {
 }
 
 export function PlantDetailModal({ plant, onClose }) {
-  const { state, icons, model, updatePlant, removePlant, markWatered, markMisted, markFertilized, markFlushed, saveIcon } = useStore()
+  const { state, icons, model, updatePlant, removePlant, markWatered, markMisted, markFertilized, markFlushed, markStillDamp, saveIcon } = useStore()
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState(null)
   const cat = getCatalogPlant(plant.catalogId)
@@ -193,10 +194,22 @@ export function PlantDetailModal({ plant, onClose }) {
         <div>
           <CareRow
             icon={<Droplets size={18} />} left={wLeft}
-            title={<>Water every <b>{waterIntervalDays(plant, lat)} days</b></>}
-            action={{ icon: <WateringCan className="art-sm" />, due: 'Water now', idle: 'Log water' }}
+            title={<>Check the soil every <b>{waterIntervalDays(plant, lat)} days</b></>}
+            action={{ icon: <WateringCan className="art-sm" />, due: 'Dry — watered', idle: 'Log water' }}
             onLog={() => markWatered(plant.id)}
-          />
+          >
+            <small className="feed-why">
+              {SOIL_CHECK.how}{' '}
+              {SOIL_CHECK.sources.map((src, i) => (
+                <span key={src.url}>{i ? ' · ' : 'Sources: '}<a href={src.url} target="_blank" rel="noreferrer">{src.label}</a></span>
+              ))}
+            </small>
+            {wLeft <= 0 && (
+              <button type="button" className="link-brand link-btn damp-btn" onClick={() => markStillDamp(plant.id)}>
+                Still damp — check tomorrow
+              </button>
+            )}
+          </CareRow>
           {cat.mist && (
             <CareRow
               icon={<SprayBottle className="art-md" />} left={mLeft}
@@ -353,13 +366,25 @@ export function PlantDetailModal({ plant, onClose }) {
 
             <div className="card card-note">
               <div className="muted note-body">
-                Species interval <b>{b.base} days</b>
+                {b.drying.source === 'et0' && (
+                  <>This species is watered every {b.summer} days in the most drying weather and every {b.winter} in the least.
+                    {' '}The past week’s evaporation here averaged <b>{b.drying.recent.toFixed(1)} mm/day</b>, on a year
+                    {' '}that runs from {b.drying.low.toFixed(1)} to {b.drying.high.toFixed(1)} mm/day — <b>{Math.round(b.drying.factor * 100)}%</b> of
+                    {' '}the way to the driest — so the species interval is <b>{b.base} days</b></>
+                )}
+                {b.drying.source === 'flat' && (
+                  <>Evaporation here barely changes through the year, so the species’ growing-season interval applies: <b>{b.base} days</b></>
+                )}
+                {b.drying.source === 'calendar' && (
+                  <>No local evaporation data yet{lat == null ? ' (set your location in Account)' : ''}, so the calendar decides:
+                    {' '}species interval <b>{b.base} days</b></>
+                )}
                 {b.capApplied && (
                   <> · that figure assumes sheltered ground, so an outdoor pot at{' '}
                     <b>{WIND_SENSITIVITY[sens].label.toLowerCase()}</b> sensitivity is capped
                     at <b>{b.capped} days</b></>
                 )}
-                {!plant.isOutside && <> · indoors, so wind is never applied</>}
+                {!plant.isOutside && <> · indoors, so wind is never applied (evaporation is measured outdoors; indoor pots feel the same seasons, damped)</>}
                 {plant.isOutside && !b.wind.applies && <> · no wind data yet for this location</>}
                 {plant.isOutside && b.wind.applies && (
                   <> · wind since last watering averaged <b>{Math.round(b.wind.avgKmh)} km/h</b>

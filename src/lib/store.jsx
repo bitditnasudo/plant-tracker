@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { formatISO, subDays } from 'date-fns'
 import { idbSet, idbGet, idbDelete, idbKeys } from './idb.js'
-import { fetchWeather, WIND_HISTORY_DAYS } from './weather.js'
-import { applyRainAnswer, setWindLog } from './schedule.js'
+import { fetchWeather, fetchEt0Climate, WIND_HISTORY_DAYS } from './weather.js'
+import { applyRainAnswer, setWindLog, setEt0Climate } from './schedule.js'
 import { setCustomCatalog, getCatalogPlant } from './catalog.js'
 import {
   isAuthenticated, signIn, signOut as signOutGoogle,
@@ -26,6 +26,10 @@ const SYNC_META_KEY = 'plant-tracker:sync'
 // Daily wind history is a device-local cache, not user data: Open-Meteo
 // backfills 30 days on every fetch, so it needs no syncing or merging.
 const WIND_LOG_KEY = 'plant-tracker:windlog'
+// the location's yearly evaporation range; device-local, refetched monthly or on a move
+const ET0_CLIMATE_KEY = 'plant-tracker:et0climate'
+const ET0_CLIMATE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+const loadEt0Climate = () => { try { return JSON.parse(localStorage.getItem(ET0_CLIMATE_KEY)) || null } catch { return null } }
 
 export const WEATHER_STALE_MS = 30 * 60 * 1000
 
@@ -143,7 +147,12 @@ export function StoreProvider({ children }) {
   // UI only, never saved: My Plants filtered to "water before trip" (set from
   // the trip card, which on desktop lives in the sidebar)
   const [tripOpen, setTripOpen] = useState(false)
-  const [windLog, setWindLogState] = useState(() => {  // { 'YYYY-MM-DD': {max, mean} }
+  const [et0Climate, setEt0ClimateState] = useState(() => {
+    const c = loadEt0Climate()
+    setEt0Climate(c) // register with the schedule module before first render
+    return c
+  })
+  const [windLog, setWindLogState] = useState(() => {  // { 'YYYY-MM-DD': {max, mean, et0} }
     const l = loadWindLog()
     setWindLog(l) // register with the schedule module before first render
     return l
@@ -254,6 +263,26 @@ export function StoreProvider({ children }) {
     }
     document.addEventListener('visibilitychange', onShow)
     return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onShow) }
+  }, [location?.lat, location?.lon])
+
+  // The location's evaporation year, for weather-driven watering. Cached per
+  // location; a failed fetch just leaves the calendar fallback in place.
+  useEffect(() => {
+    if (!location) return
+    const c = loadEt0Climate()
+    const near = c && Math.abs(c.lat - location.lat) < 0.1 && Math.abs(c.lon - location.lon) < 0.1
+    if (near && Date.now() - c.fetchedAt < ET0_CLIMATE_MAX_AGE_MS) return
+    let alive = true
+    fetchEt0Climate(location).then(next => {
+      if (!alive) return
+      try { localStorage.setItem(ET0_CLIMATE_KEY, JSON.stringify(next)) } catch {}
+      setEt0Climate(next)
+      setEt0ClimateState(next)
+    }).catch(() => {
+      // a moved location must not keep using the old place's range
+      if (alive && !near) { setEt0Climate(null); setEt0ClimateState(null) }
+    })
+    return () => { alive = false }
   }, [location?.lat, location?.lon])
 
   const patch = useCallback(updater => setState(s => updater(s)), [])
@@ -540,8 +569,10 @@ export function StoreProvider({ children }) {
           if (type === 'water') {
             prev.rainDelay = pl.rainDelay ?? false
             prev.lastWateredBy = pl.lastWateredBy ?? null
+            prev.dampOn = pl.dampOn ?? null
             fields.rainDelay = false
             fields.lastWateredBy = 'hand'
+            fields.dampOn = null
           }
           newEntries.push(careEntry(type, date, source ? { source } : {}))
         }
@@ -686,7 +717,7 @@ export function StoreProvider({ children }) {
     clearTimeout(calTimer.current)
     calTimer.current = setTimeout(runCalendarSync, 5000)
     return () => clearTimeout(calTimer.current)
-  }, [state.plants, st.calendarReminders, st.calendarCare, st.reminderHour, st.location, sync.connected, runCalendarSync])
+  }, [state.plants, windLog, et0Climate, st.calendarReminders, st.calendarCare, st.reminderHour, st.location, sync.connected, runCalendarSync])
 
   const setSettingsFn = useCallback(p => patch(s => {
     const at = nowIso()
@@ -765,6 +796,26 @@ export function StoreProvider({ children }) {
       addLogEntry(id, { type: 'rain', date: fields.lastWatered || fields.rainAnsweredFor, source: outcome }, fields)
     },
     addNote: (id, text) => addLogEntry(id, { type: 'note', text }),
+    // checked the soil and it was still damp: no watering, look again tomorrow
+    markStillDamp: id => {
+      const plant = latest.current.state.plants.find(pl => pl.id === id)
+      if (!plant) return
+      const prevDamp = plant.dampOn ?? null
+      const entry = { id: crypto.randomUUID(), type: 'check', date: todayIso(), at: nowIso(), source: 'damp' }
+      patch(s => ({
+        ...s,
+        plants: s.plants.map(pl => pl.id === id ? { ...stampPlant(pl, { dampOn: todayIso() }), log: [entry, ...(pl.log || [])] } : pl),
+      }))
+      showToast({
+        text: `Still damp — ${plant.nickname || getCatalogPlant(plant.catalogId)?.name || 'plant'} checked again tomorrow`,
+        undo: () => patch(s => ({
+          ...s,
+          plants: s.plants.map(pl => pl.id === id
+            ? { ...stampPlant(pl, { dampOn: prevDamp }), log: (pl.log || []).filter(e => e.id !== entry.id), logRemoved: [...(pl.logRemoved || []), entry.id] }
+            : pl),
+        })),
+      })
+    },
     logRepot: (id, date = todayIso()) => addLogEntry(id, { type: 'repot', date }, { lastRepotted: date }),
     addPhoto: async (id, dataUrl, text = '') => {
       const photoId = crypto.randomUUID()
@@ -858,8 +909,8 @@ export function StoreProvider({ children }) {
   }), [patch, planImage, icons, photos, model, state, applyRemote, replaceAll, syncNow, runCalendarSync, backfillClassifications, setSettingsFn, logCare, logCareJobs, addLogEntry, showToast, dismissToast])
 
   const value = useMemo(
-    () => ({ state, weather, weatherError, planImage, icons, photos, model, sync, calStatus, windLog, backfill, toast, tripOpen, setTripOpen, ...api }),
-    [state, weather, weatherError, planImage, icons, photos, model, sync, calStatus, windLog, backfill, toast, tripOpen, api],
+    () => ({ state, weather, weatherError, planImage, icons, photos, model, sync, calStatus, windLog, et0Climate, backfill, toast, tripOpen, setTripOpen, ...api }),
+    [state, weather, weatherError, planImage, icons, photos, model, sync, calStatus, windLog, et0Climate, backfill, toast, tripOpen, api],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

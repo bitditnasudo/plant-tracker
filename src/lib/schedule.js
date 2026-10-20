@@ -159,16 +159,67 @@ export function windAdjustment(plant) {
   return { applies: true, avgKmh, tier, sensitivity, cut }
 }
 
-// Growing season by hemisphere (fallback: northern)
+// Growing season by hemisphere (fallback: northern). Only a fallback now —
+// see dryingFactor() — for when there is no location or no weather yet.
 export function isGrowingSeason(date = new Date(), latitude = 20) {
   const m = date.getMonth() + 1 // 1-12
   return latitude >= 0 ? (m >= 4 && m <= 9) : (m <= 3 || m >= 10)
 }
 
+/* ── Weather-driven season (ET0) ──────────────────────────────────────────
+ * Each species has a summer and a winter interval. Which one applies used to
+ * be a calendar (April–September), which in Querétaro put the hot, bone-dry
+ * March in "winter" and the cloudy rainy season in "summer". Instead the
+ * location's own evaporation decides: FAO-56 reference evapotranspiration
+ * (ET0, from Open-Meteo), which combines the sun, heat, humidity and wind
+ * that dry a pot out. The past week's average is placed on this location's
+ * yearly range — its least and most evaporative month — and the interval
+ * slides between the winter and summer figure in proportion.
+ *
+ * ET0 is measured outdoors. Indoor pots feel it damped (no direct wind or
+ * rain), but dry air and strong light follow the same seasons, so the same
+ * position on the range is used for them; the species' own summer/winter
+ * figures already describe an indoor plant.
+ */
+export const ET0_RECENT_DAYS = 7
+export const ET0_MIN_RANGE_MM = 0.5 // a flatter year than this has no dry season to follow
+
+let et0Climate = null
+export function setEt0Climate(c) { et0Climate = c || null }
+
+// Mean ET0 over the last measured days (forecast days excluded).
+export function recentEt0(days = ET0_RECENT_DAYS) {
+  const today = formatISO(new Date(), { representation: 'date' })
+  const vals = Object.keys(windLog).sort()
+    .filter(d => d < today)
+    .map(d => windLog[d]?.et0)
+    .filter(v => typeof v === 'number')
+    .slice(-days)
+  if (vals.length < Math.min(3, days)) return null
+  return vals.reduce((a, b) => a + b, 0) / vals.length
+}
+
+// 0 = this location's least drying conditions (winter figure), 1 = its most
+// drying (summer figure). Falls back to the calendar without weather data.
+export function dryingFactor(latitude) {
+  const recent = recentEt0()
+  const c = et0Climate
+  if (recent !== null && c && typeof c.low === 'number' && typeof c.high === 'number') {
+    if (c.high - c.low < ET0_MIN_RANGE_MM) {
+      return { factor: 1, source: 'flat', recent, low: c.low, high: c.high }
+    }
+    const factor = Math.min(1, Math.max(0, (recent - c.low) / (c.high - c.low)))
+    return { factor, source: 'et0', recent, low: c.low, high: c.high }
+  }
+  const factor = isGrowingSeason(new Date(), latitude) ? 1 : 0
+  return { factor, source: 'calendar', recent: null, low: null, high: null }
+}
+
 export function baseIntervalDays(plant, latitude) {
   const cat = getCatalogPlant(plant.catalogId)
   if (!cat) return 7
-  return isGrowingSeason(new Date(), latitude) ? cat.waterSummer : cat.waterWinter
+  const { factor } = dryingFactor(latitude)
+  return Math.max(1, Math.round(cat.waterWinter + factor * (cat.waterSummer - cat.waterWinter)))
 }
 
 // Base interval after the outdoor-container ceiling. Indoor pots dry slowly,
@@ -177,7 +228,8 @@ export function potCappedBase(plant, latitude) {
   const base = baseIntervalDays(plant, latitude)
   if (!plant.isOutside) return base
   let cap = OUTDOOR_POT_CAP_DAYS[resolveWindSensitivity(plant)] ?? Infinity
-  if (cap !== Infinity && !isGrowingSeason(new Date(), latitude)) cap *= DORMANT_CAP_MULTIPLIER
+  // the ceiling relaxes the same way, up to DORMANT_CAP_MULTIPLIER × in the least drying weather
+  if (cap !== Infinity) cap = Math.round(cap * (1 + (1 - dryingFactor(latitude).factor) * (DORMANT_CAP_MULTIPLIER - 1)))
   return Math.min(base, cap)
 }
 
@@ -194,8 +246,12 @@ export function intervalBreakdown(plant, latitude) {
   const base = baseIntervalDays(plant, latitude)
   const capped = potCappedBase(plant, latitude)
   const wind = windAdjustment(plant)
+  const cat = getCatalogPlant(plant.catalogId)
   return {
     base,
+    summer: cat?.waterSummer ?? null,
+    winter: cat?.waterWinter ?? null,
+    drying: dryingFactor(latitude),
     capped,
     capApplied: capped < base,
     wind,
@@ -203,6 +259,21 @@ export function intervalBreakdown(plant, latitude) {
     override: plant.intervalOverride > 0 ? Math.max(1, Math.round(plant.intervalOverride)) : null,
     effective: waterIntervalDays(plant, latitude),
   }
+}
+
+/* The schedule says when to CHECK, not when to pour: every extension source
+ * says to feel the soil rather than water by the calendar — about an inch
+ * down (UConn, Iowa State; Illinois says two inches, and that wilting can
+ * also mean over-watering). Links checked 2026-10-19. If it's still damp,
+ * the check comes back the next day. */
+export const DAMP_RECHECK_DAYS = 1
+export const SOIL_CHECK = {
+  how: 'Push a finger into the potting mix: water if it’s dry about an inch (2–3 cm) down, and if it’s still damp, wait and check again tomorrow. Wilting can mean too much water as well as too little, so feel before you pour.',
+  sources: [
+    { label: 'UConn Extension — watering houseplants', url: 'https://extension.uconn.edu/2013/12/24/watering-houseplants/' },
+    { label: 'Iowa State Extension — watering houseplants in winter', url: 'https://yardandgarden.extension.iastate.edu/faq/how-often-should-houseplants-be-watered-during-winter-months' },
+    { label: 'University of Illinois Extension — watering', url: 'https://extension.illinois.edu/houseplants/watering' },
+  ],
 }
 
 function daysUntil(lastISO, intervalDays) {
@@ -215,6 +286,10 @@ export function waterDaysLeft(plant, latitude) {
   let left = daysUntil(plant.lastWatered, waterIntervalDays(plant, latitude))
   // light confirmed rain delays by one day
   if (plant.rainDelay) left += 1
+  // "still damp" at a soil check: look again tomorrow rather than nag today
+  if (plant.dampOn && (!plant.lastWatered || plant.dampOn >= plant.lastWatered)) {
+    left = Math.max(left, daysUntil(plant.dampOn, DAMP_RECHECK_DAYS))
+  }
   return left
 }
 
