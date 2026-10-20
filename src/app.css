@@ -965,6 +965,16 @@
     .plant-card .care-badge svg { width: 22px; height: 22px; }
     .plant-sched { margin-top: var(--sp-2); }
   }
+  /* The block above comes later than Step 2 and would otherwise win inside it
+     too: a landscape iPad's three-column grid hands the card ~270px, and the
+     spanning tile then sat on top of the name in its own row. Step 2's layout
+     restated — tile in row 1 only, name full-width under it on two lines. */
+  @container (max-width: 275px) {
+    .plant-tile-wrap { grid-row: 1; }
+    .plant-habits { align-self: center; }
+    .plant-name { -webkit-line-clamp: 2; align-self: start; }
+    .plant-sched { margin-top: 0; }
+  }
 }
 
 /* ── Desktop: the greeting sits in the sidebar, under the brand ────────── */
