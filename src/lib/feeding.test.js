@@ -20,7 +20,7 @@ describe('feed groups', () => {
     expect(group('burros-tail')).toBe('succulent')
     expect(group('orchid')).toBe('orchid')
     expect(group('basil')).toBe('herb')
-    expect(group('tomato')).toBe('container')
+    expect(group('tomato')).toBe('fruiting')
   })
 
   it('a bloomer feeds harder in an outdoor pot than on a windowsill', () => {
@@ -86,8 +86,8 @@ describe('feeding schedule', () => {
     at('2026-12-01')
     const p = feedingPlan(plant('orchid', { lastFertilized: '2026-11-20' }), LAT)
     expect(p.resting).toBe(false)
-    expect(p.days).toBe(28)
-    expect(p.left).toBe(17)
+    expect(p.days).toBe(14)
+    expect(p.left).toBe(3)
   })
 
   it('in season and overdue stays overdue', () => {
@@ -101,7 +101,10 @@ describe('mild winters', () => {
     expect(winterFeedDays(FEED_RULES.foliage, LAT)).toBe(120)
     expect(winterFeedDays(FEED_RULES.foliage, -22)).toBe(120)
     expect(winterFeedDays(FEED_RULES.foliage, COLD)).toBeNull()
-    expect(winterFeedDays(FEED_RULES.orchid, COLD)).toBe(28)
+    expect(winterFeedDays(FEED_RULES.orchid, COLD)).toBe(14)
+    // dormant cacti and succulents rest everywhere, mild winter or not
+    expect(winterFeedDays(FEED_RULES.cactus, LAT)).toBeNull()
+    expect(winterFeedDays(FEED_RULES.succulent, LAT)).toBeNull()
   })
 
   it('a Querétaro monstera fed in July is due in November, not March', () => {
@@ -110,6 +113,20 @@ describe('mild winters', () => {
     expect(p.resting).toBe(false)
     expect(p.days).toBe(120)
     expect(p.next).toEqual(new Date(2026, 10, 9))
+  })
+
+  it('a Querétaro cactus still rests until March', () => {
+    at('2026-10-19')
+    const p = feedingPlan(plant('golden-barrel', { isOutside: true, lastFertilized: '2026-07-12' }), LAT)
+    expect(p.resting).toBe(true)
+    expect(p.next).toEqual(new Date(2027, 2, 1))
+  })
+
+  it('every rule separates what the sources say from what the app chose', () => {
+    for (const r of Object.values(FEED_RULES)) {
+      expect(r.says).toBeTruthy()
+      expect(r.choice === null || typeof r.choice === 'string').toBe(true)
+    }
   })
 
   it('labels say what happens in winter', () => {

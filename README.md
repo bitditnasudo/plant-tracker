@@ -106,24 +106,32 @@ conditions). What can be cited is university-extension and botanical-garden
 guidance, written per plant group, so `src/lib/feeding.js` maps each plant to a
 group and every rule links its sources on the care sheet:
 
-| Group | Feed every | Out of season (temperate) | Sources |
+| Group | Feed every | Winter | Sources |
 |---|---|---|---|
-| Foliage houseplants, trees & palms | 60 d | paused | [Illinois](https://extension.illinois.edu/houseplants/care), [Iowa State](https://yardandgarden.extension.iastate.edu/faq/should-houseplants-be-fertilized-winter) |
-| Slow foliage (snake plant, ZZ…) | 90 d | paused | same |
-| Flowering houseplants (indoors) | 30 d | paused | same |
-| Bloomers & fruiting edibles in outdoor pots | 14 d | paused | [Nebraska](https://extension.unl.edu/statewide/platte/Horticulture/24%20June%203%20Care%20of%20Annual%20Flowers%20to%20Promote%20Season%20Long%20Blooming.pdf), [Kentucky](https://daviess.ca.uky.edu/sites/daviess.ca.uky.edu/files/20230408%20Flowering%20plants%20and%20containers.pdf) |
-| Herbs | 42 d | paused | [Ask Extension](https://ask2.extension.org/kb/faq.php?id=753082) |
-| Desert cacti | 90 d | paused | [UMN](https://extension.umn.edu/houseplants/cacti-and-succulents), [Missouri BG](https://www.missouribotanicalgarden.org/Portals/0/Gardening/Gardening%20Help/Factsheets/Cactus%20and%20Succulents10.pdf) |
+| Foliage houseplants, trees & palms | 60 d | by location | [Illinois](https://extension.illinois.edu/houseplants/care), [Iowa State](https://yardandgarden.extension.iastate.edu/faq/should-houseplants-be-fertilized-winter) |
+| Slow foliage (snake plant, ZZ…) | 90 d | by location | same |
+| Flowering houseplants (indoors) | 30 d | by location | same |
+| Ornamentals in outdoor pots | 14 d | by location | [Purdue](https://www.purdue.edu/hla/sites/yardandgarden/revive-annual-flowers/), [Kentucky](https://daviess.mgcafe.uky.edu/sites/daviess.ca.uky.edu/files/20230408%20Flowering%20plants%20and%20containers.pdf) |
+| Potted vegetables & fruit | 7 d, half strength | by location | Kentucky |
+| Herbs | 14 d | every 28 d | [Illinois herbs](https://extension.illinois.edu/news-releases/keep-growing-herbs-indoors-fall-winter) |
+| Desert cacti | 120 d | paused | [UMN](https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/cacti-and-succulents), [Missouri BG](https://www.missouribotanicalgarden.org/Portals/0/Gardening/Gardening%20Help/Factsheets/Cactus%20and%20Succulents10.pdf) |
 | Succulents | 60 d | paused | same |
-| Holiday cacti | 30 d | paused | [UF/IFAS](https://blogs.ifas.ufl.edu/flaglerco/2023/11/20/a-guide-to-holiday-cacti-care-the-basics-pt-1/) |
-| Orchids | 14 d, quarter strength | every 28 d | [AOS](https://www.aos.org/orchids/articles/fertilize-weakly-weekly), [NYBG](https://libanswers.nybg.org/faq/223105) |
+| Holiday cacti | 60 d | paused | [UF/IFAS](https://blogs.ifas.ufl.edu/flaglerco/2023/11/20/a-guide-to-holiday-cacti-care-the-basics-pt-1/), Missouri BG |
+| Orchids | 7 d, quarter strength | every 14 d | [AOS](https://www.aos.org/orchids/articles/fertilize-weakly-weekly), [NYBG](https://libanswers.nybg.org/faq/223105) |
+
+Each rule stores what its sources actually say (`says`) separately from
+where the app had to pick a number inside a range or go beyond them
+(`choice`), and the care sheet shows both, so an app choice is never passed
+off as cited. All links were checked against the cited passage on 2026-10-19.
 
 The feeding season is March–September (mirrored south of the equator). What
 "paused" means depends on the location: the sources are temperate (Midwest)
 guidance, so beyond 25° from the equator a feed that falls due out of season
 waits until 1 March, since fertilizer a resting plant can't use stays in the
 pot as salt. Within 25° (e.g. Querétaro at 20.6°N) winter is mild and growth
-only slows, so October–February feeds come half as often instead of stopping. The group
+only slows, so October–February feeds come half as often instead of stopping
+("by location" above). That adjustment is the app's own and the care sheet says
+so. Cacti and succulents rest everywhere, as their sources say. The group
 is resolved when the schedule is read, so nothing is stored per plant and the
 old per-species `fertilize` numbers are ignored.
 

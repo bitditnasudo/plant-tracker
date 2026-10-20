@@ -14,81 +14,102 @@
  * with plain water now and then to wash out the salts fertilizer leaves.
  */
 
+// Every link checked 2026-10-19 against the passage it is cited for.
 export const SOURCES = {
   illinois: { label: 'University of Illinois Extension — houseplant care', url: 'https://extension.illinois.edu/houseplants/care' },
   iowa:     { label: 'Iowa State Extension — fertilizing houseplants in winter', url: 'https://yardandgarden.extension.iastate.edu/faq/should-houseplants-be-fertilized-winter' },
-  umnCacti: { label: 'University of Minnesota Extension — cacti and succulents', url: 'https://extension.umn.edu/houseplants/cacti-and-succulents' },
+  umnCacti: { label: 'University of Minnesota Extension — cacti and succulents', url: 'https://extension.umn.edu/garden-and-home/yard-and-garden/gardening-in-minnesota/cacti-and-succulents' },
   mobot:    { label: 'Missouri Botanical Garden — cacti and succulents factsheet', url: 'https://www.missouribotanicalgarden.org/Portals/0/Gardening/Gardening%20Help/Factsheets/Cactus%20and%20Succulents10.pdf' },
   ufHoliday:{ label: 'UF/IFAS Extension — holiday cactus care', url: 'https://blogs.ifas.ufl.edu/flaglerco/2023/11/20/a-guide-to-holiday-cacti-care-the-basics-pt-1/' },
   aos:      { label: 'American Orchid Society — fertilize weakly, weekly', url: 'https://www.aos.org/orchids/articles/fertilize-weakly-weekly' },
   nybg:     { label: 'New York Botanical Garden — Phalaenopsis care', url: 'https://libanswers.nybg.org/faq/223105' },
-  unl:      { label: 'Nebraska Extension — care of annual flowers', url: 'https://extension.unl.edu/statewide/platte/Horticulture/24%20June%203%20Care%20of%20Annual%20Flowers%20to%20Promote%20Season%20Long%20Blooming.pdf' },
-  uky:      { label: 'Kentucky Extension — flowering plants in containers', url: 'https://daviess.ca.uky.edu/sites/daviess.ca.uky.edu/files/20230408%20Flowering%20plants%20and%20containers.pdf' },
-  askExt:   { label: 'Ask Extension — fertilizing herbs', url: 'https://ask2.extension.org/kb/faq.php?id=753082' },
+  purdue:   { label: 'Purdue Extension — revive annual flowers', url: 'https://www.purdue.edu/hla/sites/yardandgarden/revive-annual-flowers/' },
+  uky:      { label: 'Kentucky Extension — gardening in containers', url: 'https://daviess.mgcafe.uky.edu/sites/daviess.ca.uky.edu/files/20230408%20Flowering%20plants%20and%20containers.pdf' },
+  ilHerbs:  { label: 'University of Illinois Extension — growing herbs indoors', url: 'https://extension.illinois.edu/news-releases/keep-growing-herbs-indoors-fall-winter' },
 }
 
-/* days: interval while the plant is growing. winterDays: a fixed interval out
- * of season for plants that keep growing everywhere (orchids), or null to let
- * the location decide — see winterFeedDays(). */
+/* days: interval while the plant is growing.
+ * winterDays: 'pause' — no feeding out of season anywhere (the sources say so
+ *   for dormant cacti and succulents); a number — a fixed slower interval
+ *   (orchids, herbs); null — let the location decide, see winterFeedDays().
+ * says: what the cited sources actually state.
+ * choice: where the app had to pick a number inside a range, or went beyond
+ *   the sources — said out loud so it is never passed off as cited. */
 export const FEED_RULES = {
   foliage: {
     label: 'Foliage houseplant', days: 60, winterDays: null,
     dose: 'label strength or weaker, never stronger',
-    why: 'Most houseplants need feeding only every 1–3 months from March to September, and little or none in winter.',
+    says: 'Most houseplants need feeding no more than once every 1–3 months, March to September, and very little or none in the short days of winter.',
+    choice: 'The app uses 2 months, the middle of that range.',
     sources: ['illinois', 'iowa'],
   },
   slowFoliage: {
     label: 'Slow-growing foliage', days: 90, winterDays: null,
-    dose: 'half strength',
-    why: 'Slow, drought-tolerant growers sit at the long end of the 1–3 month range; extra food just builds up as salt.',
+    dose: 'label strength or weaker, never stronger',
+    says: 'Most houseplants need feeding no more than once every 1–3 months, March to September, and very little or none in the short days of winter.',
+    choice: 'Slow, drought-tolerant growers (snake plant, ZZ…) get the 3-month end of that range.',
     sources: ['illinois', 'iowa'],
   },
   floweringIndoor: {
     label: 'Flowering houseplant', days: 30, winterDays: null,
     dose: 'label strength or weaker, never stronger',
-    why: 'Bloomers are the heavier feeders among houseplants, so they take the short end of the 1–3 month range, with less or none in winter.',
+    says: 'Most houseplants need feeding no more than once every 1–3 months, March to September, and very little or none in the short days of winter.',
+    choice: 'The sources don’t single out bloomers; the app gives them the 1-month end of the range.',
     sources: ['illinois', 'iowa'],
   },
   container: {
-    label: 'Outdoor container bloomer', days: 14, winterDays: null,
-    dose: 'water-soluble, label strength',
-    why: 'Frequent watering in outdoor pots washes nitrogen out fast, so container annuals get a liquid feed every 2–3 weeks while they grow — with the pot flushed now and then.',
-    sources: ['unl', 'uky'],
+    label: 'Outdoor container plant', days: 14, winterDays: null,
+    dose: 'soluble fertilizer, per the label',
+    says: 'Watering washes nutrients out of containers, so potted ornamentals get a soluble feed every 1–3 weeks; water until it runs out the drainage holes to keep fertilizer salts from building up.',
+    choice: 'The app uses 2 weeks.',
+    sources: ['purdue', 'uky'],
+  },
+  fruiting: {
+    label: 'Potted vegetable or fruit', days: 7, winterDays: null,
+    dose: 'half strength',
+    says: 'Vegetables in pots get a soluble fertilizer once a week at half strength.',
+    choice: null,
+    sources: ['uky'],
   },
   herb: {
-    label: 'Herb', days: 42, winterDays: null,
-    dose: 'half strength',
-    why: 'Herbs do best on little fertilizer — too generous a feed makes them taste "off".',
-    sources: ['askExt'],
+    label: 'Herb', days: 14, winterDays: 28,
+    dose: 'water-soluble, per the label',
+    says: 'Herbs get a water-soluble feed every two weeks and no more often — feeding too often hurts their flavour and aroma.',
+    choice: 'The source gives no winter rule; the app halves it in winter, when windowsill growth slows.',
+    sources: ['ilHerbs'],
   },
   cactus: {
-    label: 'Desert cactus', days: 90, winterDays: null,
-    dose: 'half strength, low-nitrogen',
-    why: 'Cacti need feeding only once or twice a year in late spring or summer, and none in winter.',
+    label: 'Desert cactus', days: 120, winterDays: 'pause',
+    dose: 'half strength, higher in phosphorus than nitrogen',
+    says: 'Cacti need fertilizer only once or twice a year, in late spring or summer while growing; in winter they are dormant and need none.',
+    choice: 'Every 4 months in season works out to twice a year.',
     sources: ['umnCacti', 'mobot'],
   },
   succulent: {
-    label: 'Succulent', days: 60, winterDays: null,
+    label: 'Succulent', days: 60, winterDays: 'pause',
     dose: 'quarter to half strength',
-    why: 'Succulents take three or four light feeds in the brighter months and none in winter.',
+    says: 'Succulents are fed three or four times during the brighter months; in winter they are dormant and need none.',
+    choice: 'Every 2 months, March–September, works out to four feeds.',
     sources: ['umnCacti', 'mobot'],
   },
   holidayCactus: {
-    label: 'Forest cactus', days: 30, winterDays: null,
-    dose: 'half strength',
-    why: 'Holiday cacti are fed about monthly in the growing season, then reduced or stopped in fall and winter.',
-    sources: ['ufHoliday'],
+    label: 'Holiday cactus', days: 60, winterDays: 'pause',
+    dose: 'quarter to half strength',
+    says: 'Feed holiday cacti in spring and summer, and reduce or stop in fall and winter.',
+    choice: 'The source gives no interval; the app uses the general houseplant 2 months.',
+    sources: ['ufHoliday', 'mobot'],
   },
   orchid: {
-    label: 'Orchid', days: 14, winterDays: 28,
-    dose: 'quarter strength',
-    why: 'Orchids are fed "weakly, weekly" — a very dilute feed every week or two, less in winter, with a plain-water flush each month.',
+    label: 'Orchid', days: 7, winterDays: 14,
+    dose: 'quarter strength or weaker',
+    says: 'Feed orchids "weakly, weekly" — a quarter or eighth strength — and once a month use plain water instead to leach the salts. Phalaenopsis keep growing in winter at a lower rate.',
+    choice: 'The sources halve the winter dose; the app halves it by feeding every 2 weeks instead.',
     sources: ['aos', 'nybg'],
   },
 }
 
 export const FLUSH = {
-  days: 120, // every 4–6 months; the short end while salt burn is the worry
+  days: 120, // Illinois says every 4–6 months; the short end while salt burn is the worry
   orchidDays: 30,
   why: 'Pour plain water through the pot until it runs out the bottom, let it drain fully and empty the saucer. This washes out the salts fertilizer leaves behind.',
   sources: ['illinois'],
@@ -112,7 +133,7 @@ export function feedGroup(plant, cat) {
     case 'cactus': return 'cactus'
     case 'succulent': return 'succulent'
     case 'flower': return plant?.isOutside ? 'container' : 'floweringIndoor'
-    case 'herb': return FRUITING.test(h) ? 'container' : 'herb'
+    case 'herb': return FRUITING.test(h) ? 'fruiting' : 'herb'
     case 'tree':
     case 'foliage':
     default:
@@ -153,9 +174,18 @@ export const WINTER_LABEL = lat => (lat ?? 20) >= 0 ? 'Oct–Feb' : 'Apr–Aug'
  * little). Returns the winter interval, or null for a full pause. */
 export const SUBTROPICAL_LAT = 25
 
+export const isSubtropical = latitude => Math.abs(latitude ?? 20) < SUBTROPICAL_LAT
+
 export function winterFeedDays(rule, latitude = 20) {
+  if (rule.winterDays === 'pause') return null
   if (rule.winterDays) return rule.winterDays
-  return Math.abs(latitude ?? 20) < SUBTROPICAL_LAT ? rule.days * 2 : null
+  return isSubtropical(latitude) ? rule.days * 2 : null
+}
+
+// The one adjustment no source makes, shown wherever it applies.
+export function winterNote(rule, latitude) {
+  if (rule.winterDays !== null || !isSubtropical(latitude)) return null
+  return `The sources are written for cold-winter climates. Within ${SUBTROPICAL_LAT}° of the equator winter only slows growth, so the app feeds half as often in ${WINTER_LABEL(latitude)} instead of stopping. That adjustment is the app's, not the sources'.`
 }
 
 // "every 60 days, every 120 in Oct–Feb" / "every 60 days, March–September only"

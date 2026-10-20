@@ -7,7 +7,7 @@ import {
   waterDaysLeft, mistDaysLeft, feedingPlan, flushPlan, daysLeftLabel, waterIntervalDays,
   WIND_SENSITIVITY, resolveWindSensitivity, intervalBreakdown,
 } from '../lib/schedule.js'
-import { SOURCES, FLUSH, feedScheduleLabel } from '../lib/feeding.js'
+import { SOURCES, FLUSH, feedScheduleLabel, winterNote } from '../lib/feeding.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { resizeImage } from '../lib/image.js'
 import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
@@ -213,7 +213,9 @@ export function PlantDetailModal({ plant, onClose }) {
             onLog={() => markFertilized(plant.id)}
           >
             <small className="feed-why">
-              {feed.rule.label}: {feed.rule.why} Use {feed.rule.dose}.{' '}
+              {feed.rule.label}: {feed.rule.says} Use {feed.rule.dose}.
+              {feed.rule.choice && <> <i>{feed.rule.choice}</i></>}
+              {winterNote(feed.rule, lat) && <> <i>{winterNote(feed.rule, lat)}</i></>}{' '}
               {feed.rule.sources.map((k, i) => (
                 <span key={k}>{i ? ' · ' : 'Source: '}<a href={SOURCES[k].url} target="_blank" rel="noreferrer">{SOURCES[k].label}</a></span>
               ))}
