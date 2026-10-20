@@ -124,16 +124,24 @@ where the app had to pick a number inside a range or go beyond them
 (`choice`), and the care sheet shows both, so an app choice is never passed
 off as cited. All links were checked against the cited passage on 2026-10-19.
 
-The feeding season is March–September (mirrored south of the equator). What
-"paused" means depends on the location: the sources are temperate (Midwest)
-guidance, so beyond 25° from the equator a feed that falls due out of season
-waits until 1 March, since fertilizer a resting plant can't use stays in the
-pot as salt. Within 25° (e.g. Querétaro at 20.6°N) winter is mild and growth
-only slows, so October–February feeds come half as often instead of stopping
-("by location" above). That adjustment is the app's own and the care sheet says
-so. Cacti and succulents rest everywhere, as their sources say. The group
-is resolved when the schedule is read, so nothing is stored per plant and the
-old per-species `fertilize` numbers are ignored.
+**Adapting to your location.** The sources tie the winter rest to "the short
+days of winter" and are written for cold-winter places, so the app reads the
+saved location (Account) for exactly that: the length of its shortest day,
+worked out from latitude. The thresholds are the app's own, and the care sheet
+says so and names your day length:
+
+| Band | Shortest day | Where (e.g.) | Feeding |
+|---|---|---|---|
+| Tropical | ≥ 11 h 15 m (within ~12°) | Singapore, Quito, Lima | all year at the season rate; cacti every 180 d, succulents 90 d |
+| Mild | ≥ 10 h 25 m (~12–25°) | Querétaro (10 h 45 m), São Paulo | Oct–Feb half as often ("by location" above); cacti and succulents still rest |
+| Cold | shorter | Madrid, Chicago, Sydney | paused out of season, as the sources say |
+| No location saved | — | — | treated as cold, northern, until one is set |
+
+The season is March–September, mirrored (September–March) south of the
+equator. A feed that falls due during a pause waits for the season to start
+instead of showing as overdue, since fertilizer a resting plant can't use stays
+in the pot as salt. The group is resolved when the schedule is read, so nothing
+is stored per plant and changing your location re-plans every plant at once.
 
 **Soil flush:** every 120 days (orchids every 30) the app asks you to run plain
 water through the pot to wash out fertilizer salts (Illinois Extension: every

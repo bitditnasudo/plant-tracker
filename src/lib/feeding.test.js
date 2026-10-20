@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { feedGroup, isFeedingSeason, nextSeasonStart, winterFeedDays, feedScheduleLabel, FEED_RULES, SOURCES, FLUSH } from './feeding.js'
+import { feedGroup, isFeedingSeason, nextSeasonStart, winterFeedDays, feedScheduleLabel, winterNote, shortestDayHours, climateBand, FEED_RULES, SOURCES, FLUSH } from './feeding.js'
 import { feedingPlan, fertilizeDaysLeft, flushPlan, flushDaysLeft } from './schedule.js'
 import { setCustomCatalog, getCatalogPlant } from './catalog.js'
 
@@ -132,6 +132,58 @@ describe('mild winters', () => {
   it('labels say what happens in winter', () => {
     expect(feedScheduleLabel(FEED_RULES.foliage, LAT)).toBe('every 60 days, every 120 in Oct–Feb')
     expect(feedScheduleLabel(FEED_RULES.foliage, COLD)).toBe('every 60 days, March–September only')
+  })
+})
+
+describe('adapting to the saved location', () => {
+  const SINGAPORE = 1.35
+  const SYDNEY = -33.9
+
+  it('reads the shortest day of the year from latitude', () => {
+    expect(shortestDayHours(0)).toBeCloseTo(12, 1)
+    expect(shortestDayHours(LAT)).toBeCloseTo(10.75, 1)
+    expect(shortestDayHours(COLD)).toBeCloseTo(8.95, 1)
+    expect(shortestDayHours(75)).toBe(0) // polar night
+  })
+
+  it('sorts places into climate bands', () => {
+    expect(climateBand(SINGAPORE)).toBe('tropical')
+    expect(climateBand(-0.2)).toBe('tropical') // Quito: the equator has no winter to mirror
+    expect(climateBand(LAT)).toBe('mild')
+    expect(climateBand(-23.5)).toBe('mild')
+    expect(climateBand(COLD)).toBe('cold')
+    expect(climateBand(SYDNEY)).toBe('cold')
+    expect(climateBand(undefined)).toBe('unknown')
+    expect(climateBand(null)).toBe('unknown')
+  })
+
+  it('the tropics feed all year, cacti on their twice-a-year count', () => {
+    at('2026-12-01')
+    expect(isFeedingSeason(new Date(), SINGAPORE)).toBe(true)
+    expect(feedScheduleLabel(FEED_RULES.foliage, SINGAPORE)).toBe('every 60 days, all year')
+    const c = feedingPlan(plant('golden-barrel', { lastFertilized: '2026-11-01' }), SINGAPORE)
+    expect(c.resting).toBe(false)
+    expect(c.days).toBe(180)
+    expect(flushPlan(plant('golden-barrel'), SINGAPORE).resting).toBe(false)
+  })
+
+  it('an unset location follows the sources (full pause) and says so', () => {
+    at('2026-12-01')
+    expect(feedingPlan(plant('monstera', { lastFertilized: '2026-11-01' }), undefined).resting).toBe(true)
+    expect(winterNote(FEED_RULES.foliage, undefined)).toMatch(/Set your location/)
+  })
+
+  it('the southern hemisphere rests in its own winter', () => {
+    at('2026-07-01')
+    const p = feedingPlan(plant('monstera', { lastFertilized: '2026-05-01' }), SYDNEY)
+    expect(p.resting).toBe(true)
+    expect(p.next).toEqual(new Date(2026, 8, 1))
+  })
+
+  it('the note names the day length that drove the adjustment', () => {
+    expect(winterNote(FEED_RULES.foliage, LAT)).toMatch(/10 h 45 m/)
+    expect(winterNote(FEED_RULES.cactus, LAT)).toBeNull() // cacti rest; nothing adjusted
+    expect(winterNote(FEED_RULES.foliage, COLD)).toBeNull()
   })
 })
 

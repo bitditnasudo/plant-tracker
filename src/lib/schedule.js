@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, addDays, parseISO, formatISO, subDays, format } from 'date-fns'
 import { getCatalogPlant } from './catalog.js'
-import { feedGroup, feedRule, isFeedingSeason, nextSeasonStart, winterFeedDays, FLUSH, flushRestsInWinter } from './feeding.js'
+import { feedGroup, feedRule, isFeedingSeason, nextSeasonStart, seasonFeedDays, winterFeedDays, FLUSH, flushRestsInWinter } from './feeding.js'
 
 // Rain rules (see README): rain never auto-waters a plant — pots under eaves or
 // dense foliage may stay dry, so the user confirms via the red bubble first.
@@ -229,7 +229,7 @@ export function feedingPlan(plant, latitude) {
   const rule = feedRule(plant, cat)
   const inSeason = isFeedingSeason(today, latitude)
   const winter = winterFeedDays(rule, latitude)
-  const days = inSeason || winter === null ? rule.days : winter
+  const days = inSeason || winter === null ? seasonFeedDays(rule, latitude) : winter
   let next = plant.lastFertilized ? addDays(parseISO(plant.lastFertilized), days) : today
   let resting = false
   // an overdue feed that fell due before the season ended waits too

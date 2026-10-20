@@ -202,7 +202,7 @@ export default function Account() {
             <div className="row-icon"><MapPin size={18} /></div>
             <div className="grow">
               Location
-              <small>{s.location ? s.location.label : 'Not set — needed for weather & rain'}</small>
+              <small>{s.location ? s.location.label : 'Not set — needed for weather, rain and the feeding calendar'}</small>
             </div>
             <button className="btn btn-secondary btn-sm" onClick={useGPS} disabled={busy}>
               {busy ? <Loader2 size={14} className="spin" /> : <LocateFixed size={14} />} GPS
@@ -222,9 +222,9 @@ export default function Account() {
         </div>
         {cityResults && (
           <div className="result-chips">
-            {cityResults.map(r => (
+            {cityResults.map((r, i) => (
               <button
-                key={`${r.lat},${r.lon}`} className="chip"
+                key={`${r.lat},${r.lon},${i}`} className="chip"
                 onClick={() => { setSettings({ location: r }); setCityResults(null); setCityQuery('') }}
               >
                 <MapPin size={12} /> {r.label}

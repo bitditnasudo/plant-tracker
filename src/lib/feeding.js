@@ -32,6 +32,8 @@ export const SOURCES = {
  * winterDays: 'pause' — no feeding out of season anywhere (the sources say so
  *   for dormant cacti and succulents); a number — a fixed slower interval
  *   (orchids, herbs); null — let the location decide, see winterFeedDays().
+ * yearRoundDays: where there is no winter to rest in, the interval that still
+ *   lands on the sources' yearly count (cacti twice, succulents four times).
  * says: what the cited sources actually state.
  * choice: where the app had to pick a number inside a range, or went beyond
  *   the sources — said out loud so it is never passed off as cited. */
@@ -79,14 +81,14 @@ export const FEED_RULES = {
     sources: ['ilHerbs'],
   },
   cactus: {
-    label: 'Desert cactus', days: 120, winterDays: 'pause',
+    label: 'Desert cactus', days: 120, winterDays: 'pause', yearRoundDays: 180,
     dose: 'half strength, higher in phosphorus than nitrogen',
     says: 'Cacti need fertilizer only once or twice a year, in late spring or summer while growing; in winter they are dormant and need none.',
     choice: 'Every 4 months in season works out to twice a year.',
     sources: ['umnCacti', 'mobot'],
   },
   succulent: {
-    label: 'Succulent', days: 60, winterDays: 'pause',
+    label: 'Succulent', days: 60, winterDays: 'pause', yearRoundDays: 90,
     dose: 'quarter to half strength',
     says: 'Succulents are fed three or four times during the brighter months; in winter they are dormant and need none.',
     choice: 'Every 2 months, March–September, works out to four feeds.',
@@ -145,55 +147,101 @@ export function feedRule(plant, cat) {
   return FEED_RULES[feedGroup(plant, cat)]
 }
 
+/* ── Adapting to the saved location ──────────────────────────────────────
+ * The sources tie the winter rest to "the short days of winter" (Illinois)
+ * and are written for cold-winter places (Illinois, Iowa, Minnesota). So the
+ * location is read for exactly that: how short its shortest day is, which
+ * follows from latitude by plain astronomy. Indoors, day length is the part
+ * of winter a heated room doesn't cancel out.
+ *
+ *   tropical  shortest day ≥ 11 h 15 m (within ~12° of the equator): day length
+ *             barely changes, there is no winter rest — feed all year.
+ *   mild      ≥ 10 h 25 m (~12–25°, e.g. Querétaro 10 h 45 m): growth slows
+ *             rather than stops — feed half as often in winter.
+ *   cold      shorter (beyond ~25°): the sources' own climate — the feed stops.
+ *   unknown   no location saved: follow the sources' calendar (cold, north)
+ *             until there is one.
+ * The band thresholds are the app's, not the sources', and the care sheet
+ * says so. Dormant cacti and succulents rest in every band that has a winter.
+ */
+const TROPICAL_MIN_DAY_H = 11.25
+const MILD_MIN_DAY_H = 10.42
+
+// Length of the shortest day of the year (winter solstice), in hours.
+export function shortestDayHours(latitude) {
+  const phi = (Math.abs(latitude) * Math.PI) / 180
+  const decl = (23.44 * Math.PI) / 180
+  const x = Math.tan(phi) * Math.tan(decl)
+  if (x >= 1) return 0 // polar night
+  return (2 * (Math.acos(x) * 180) / Math.PI) / 15
+}
+
+export function climateBand(latitude) {
+  if (typeof latitude !== 'number' || Number.isNaN(latitude)) return 'unknown'
+  const h = shortestDayHours(latitude)
+  if (h >= TROPICAL_MIN_DAY_H) return 'tropical'
+  if (h >= MILD_MIN_DAY_H) return 'mild'
+  return 'cold'
+}
+
+const south = latitude => typeof latitude === 'number' && latitude < 0
+
 /* The feeding season: March–September (Illinois Extension), mirrored for the
- * southern hemisphere. Slightly wider than the watering season in schedule.js
- * (April–September) because growth restarts with lengthening days in March,
- * before evaporation does. */
-export function isFeedingSeason(date = new Date(), latitude = 20) {
+ * southern hemisphere; all year where there is no winter. Slightly wider than
+ * the watering season in schedule.js (April–September) because growth
+ * restarts with lengthening days in March, before evaporation does. */
+export function isFeedingSeason(date = new Date(), latitude) {
+  if (climateBand(latitude) === 'tropical') return true
   const m = date.getMonth() + 1
-  return latitude >= 0 ? (m >= 3 && m <= 9) : (m <= 3 || m >= 9)
+  return south(latitude) ? (m <= 3 || m >= 9) : (m >= 3 && m <= 9)
 }
 
 // First day of the next feeding season on or after `date`.
-export function nextSeasonStart(date = new Date(), latitude = 20) {
-  const startMonth = latitude >= 0 ? 2 : 8 // 0-based: March / September
+export function nextSeasonStart(date = new Date(), latitude) {
+  const startMonth = south(latitude) ? 8 : 2 // 0-based: September / March
   const y = date.getFullYear()
   const thisYear = new Date(y, startMonth, 1)
   return date <= thisYear ? thisYear : new Date(y + 1, startMonth, 1)
 }
 
-export const FEED_SEASON_LABEL = lat => (lat ?? 20) >= 0 ? 'March–September' : 'September–March'
-export const WINTER_LABEL = lat => (lat ?? 20) >= 0 ? 'Oct–Feb' : 'Apr–Aug'
+export const FEED_SEASON_LABEL = lat => south(lat) ? 'September–March' : 'March–September'
+export const WINTER_LABEL = lat => south(lat) ? 'Apr–Aug' : 'Oct–Feb'
 
-/* How winter is handled depends on how much winter there is. The extension
- * sources are written for temperate climates (Illinois, Iowa, Minnesota),
- * where houseplants really go dormant through dark, cold months — there the
- * feed stops. Within ~25° of the equator winter days are only a couple of
- * hours shorter and indoor growth slows rather than stops, so feeding drops
- * to half as often instead ("little or no fertilizer" — Illinois — read as
- * little). Returns the winter interval, or null for a full pause. */
-export const SUBTROPICAL_LAT = 25
+// Interval during the growing season (all year in the tropics).
+export function seasonFeedDays(rule, latitude) {
+  return climateBand(latitude) === 'tropical' && rule.yearRoundDays ? rule.yearRoundDays : rule.days
+}
 
-export const isSubtropical = latitude => Math.abs(latitude ?? 20) < SUBTROPICAL_LAT
-
-export function winterFeedDays(rule, latitude = 20) {
+// Interval out of season, or null for a full pause.
+export function winterFeedDays(rule, latitude) {
+  const band = climateBand(latitude)
+  if (band === 'tropical') return seasonFeedDays(rule, latitude) // no winter to change it
   if (rule.winterDays === 'pause') return null
   if (rule.winterDays) return rule.winterDays
-  return isSubtropical(latitude) ? rule.days * 2 : null
+  return band === 'mild' ? rule.days * 2 : null
 }
 
-// The one adjustment no source makes, shown wherever it applies.
+const hm = h => { const m = Math.round(h * 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} m` }
+
+// How the location changed this plant's schedule — shown on the care sheet,
+// always marked as the app's adjustment rather than a cited figure.
 export function winterNote(rule, latitude) {
-  if (rule.winterDays !== null || !isSubtropical(latitude)) return null
-  return `The sources are written for cold-winter climates. Within ${SUBTROPICAL_LAT}° of the equator winter only slows growth, so the app feeds half as often in ${WINTER_LABEL(latitude)} instead of stopping. That adjustment is the app's, not the sources'.`
+  const band = climateBand(latitude)
+  if (band === 'unknown') return 'No location is saved, so this follows the sources’ cold-winter calendar. Set your location in Account to adapt it to your climate.'
+  const day = hm(shortestDayHours(latitude))
+  if (band === 'tropical') return `Your shortest day is ${day}, so there is no real winter rest here and the app feeds at the same rate all year. That adjustment is the app’s, not the sources’.`
+  if (band === 'mild' && rule.winterDays === null) return `Your shortest day is ${day}. The sources are written for colder, darker winters; here growth only slows, so the app feeds half as often in ${WINTER_LABEL(latitude)} instead of stopping. That adjustment is the app’s, not the sources’.`
+  return null
 }
 
-// "every 60 days, every 120 in Oct–Feb" / "every 60 days, March–September only"
+// "every 60 days, every 120 in Oct–Feb" / "every 60 days, March–September only" / "every 60 days, all year"
 export function feedScheduleLabel(rule, latitude) {
+  const days = seasonFeedDays(rule, latitude)
+  if (climateBand(latitude) === 'tropical') return `every ${days} days, all year`
   const w = winterFeedDays(rule, latitude)
   return w
-    ? `every ${rule.days} days, every ${w} in ${WINTER_LABEL(latitude)}`
-    : `every ${rule.days} days, ${FEED_SEASON_LABEL(latitude)} only`
+    ? `every ${days} days, every ${w} in ${WINTER_LABEL(latitude)}`
+    : `every ${days} days, ${FEED_SEASON_LABEL(latitude)} only`
 }
 
 export const flushRestsInWinter = group => group === 'cactus' || group === 'succulent'
