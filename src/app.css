@@ -232,8 +232,8 @@
 .popover-notifs::before {
   background: linear-gradient(var(--surface), var(--surface)), var(--bg-2);
 }
-/* wide enough for all five chore tabs side by side — none hides off the edge */
-.popover-notifs { width: min(440px, calc(100vw - 24px)); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
+/* wide enough for all six chore tabs side by side — none hides off the edge */
+.popover-notifs { width: min(520px, calc(100vw - 24px)); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
 
 .notif-head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -723,6 +723,12 @@
 /* phones: the count sits under the label so five tabs fit on one row */
 @media (max-width: 480px) {
   .notif-tabs button { flex-direction: column; gap: 1px; padding: 3px 2px; line-height: 1.1; }
+}
+/* Above phones the label and count sit side by side, so a tab must never get
+   narrower than both together — at 52px six tabs squeezed into one row and
+   their labels ran into each other. Short of room, one wraps instead. */
+@media (min-width: 481px) {
+  .notif-tabs button { min-width: max-content; padding: 0 var(--sp-2); }
 }
 
 /* ── Weather: skeleton at final height, stale label ──────────────────────── */
