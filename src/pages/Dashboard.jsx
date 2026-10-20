@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, Waves, Clock3 } from 'lucide-react'
+import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, Waves, Clock3, CalendarPlus, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
 import { getCatalogPlant } from '../lib/catalog.js'
@@ -25,10 +25,14 @@ function useWide() {
 const dueLabel = left => left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'
 
 const SORTS = {
-  due: { next: 'az', label: 'Due first', Icon: AlarmClock },
-  az:  { next: 'za', label: 'A–Z', Icon: ArrowDownAZ },
-  za:  { next: 'due', label: 'Z–A', Icon: ArrowDownZA },
+  due:    { label: 'Due first', Icon: AlarmClock },
+  az:     { label: 'A–Z', Icon: ArrowDownAZ },
+  za:     { label: 'Z–A', Icon: ArrowDownZA },
+  // the chip shows `short` where the menu has room for the whole label
+  newest: { label: 'Newest added', short: 'Newest', Icon: CalendarPlus },
 }
+const WHERE = { all: 'All', inside: 'Inside', outside: 'Outside' }
+const NO_FILTER = { where: 'all', room: null }
 
 export default function Dashboard({ onAdd }) {
   const { state, weather, windLog, et0Climate, setSettings, logCare, logCareJobs, markStillDamp, tripOpen, setTripOpen } = useStore()
@@ -42,6 +46,20 @@ export default function Dashboard({ onAdd }) {
   // other half is done too, instead of hopping to the Water or Feed tab.
   const [comboPins, setComboPins] = useState(() => new Set())
   const bellRef = useRef(null)
+  // the sort menu and the filter panel — one open at a time
+  const [menu, setMenu] = useState(null)
+  const sortRef = useRef(null)
+  const filterRef = useRef(null)
+  // Saved like the sort, so the list comes back the way it was left. A room
+  // that has since been deleted simply stops filtering.
+  const savedFilter = { ...NO_FILTER, ...state.settings.plantFilter }
+  const roomIds = new Set(state.plan.zones.map(z => z.id))
+  const filter = {
+    where: WHERE[savedFilter.where] ? savedFilter.where : 'all',
+    room: savedFilter.room === 'none' || roomIds.has(savedFilter.room) ? savedFilter.room : null,
+  }
+  const filterCount = (filter.where !== 'all') + (filter.room !== null)
+  const setFilter = f => setSettings({ plantFilter: { ...filter, ...f } })
   const wide = useWide()
   const lat = state.settings.location?.lat
 
@@ -153,6 +171,20 @@ export default function Dashboard({ onAdd }) {
     }
   }
 
+  // the sort menu and filter panel close the same way the bell does
+  useEffect(() => {
+    if (!menu) return
+    const ref = menu === 'sort' ? sortRef : filterRef
+    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) setMenu(null) }
+    const onKey = e => { if (e.key === 'Escape') setMenu(null) }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
+
   // dismiss the bubble on an outside tap or Escape
   useEffect(() => {
     if (!showNotifs) return
@@ -171,8 +203,16 @@ export default function Dashboard({ onAdd }) {
     const name = p => p.nickname || getCatalogPlant(p.catalogId)?.name || ''
     // locale-aware so accents and numbers order the way a reader expects
     const byName = (a, b) => name(a).localeCompare(name(b), undefined, { sensitivity: 'base', numeric: true })
+    // Plants are appended as they're added, so list position is the add order.
+    // addedAt (stamped since this sort existed) wins where both have it, and
+    // anything carrying one is newer than anything that doesn't.
+    const pos = new Map(state.plants.map((p, i) => [p.id, i]))
+    const byAdded = (a, b) =>
+      (!!a.addedAt - !!b.addedAt) || (a.addedAt || '').localeCompare(b.addedAt || '') || pos.get(a.id) - pos.get(b.id)
     return [...state.plants]
       .filter(p => !tripFilter || tripNeeds.has(p.id))
+      .filter(p => filter.where === 'all' || (filter.where === 'outside') === !!p.isOutside)
+      .filter(p => filter.room === null || (filter.room === 'none' ? !roomIds.has(p.zoneId) : p.zoneId === filter.room))
       .filter(p => {
         if (!q) return true
         const cat = getCatalogPlant(p.catalogId)
@@ -182,9 +222,30 @@ export default function Dashboard({ onAdd }) {
       })
       .sort((a, b) => {
         if (sort === 'due') return (urgency.get(a.id) ?? 99) - (urgency.get(b.id) ?? 99) || byName(a, b)
+        if (sort === 'newest') return byAdded(b, a)
         return sort === 'za' ? -byName(a, b) : byName(a, b)
       })
-  }, [state.plants, query, sort, urgency, tripFilter, tripNeeds])
+  // roomIds is rebuilt from state.plan.zones every render; the filter's two
+  // fields are primitives
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.plants, state.plan.zones, query, sort, urgency, tripFilter, tripNeeds, filter.where, filter.room])
+
+  // Only rooms that hold a plant are worth offering, alphabetically, plus a
+  // "No room" bucket when some plants were never placed.
+  const roomOptions = useMemo(() => {
+    const count = new Map()
+    for (const p of state.plants) {
+      const k = roomIds.has(p.zoneId) ? p.zoneId : 'none'
+      count.set(k, (count.get(k) || 0) + 1)
+    }
+    const rooms = state.plan.zones
+      .filter(z => count.has(z.id))
+      .map(z => ({ id: z.id, name: z.name || 'Unnamed room', n: count.get(z.id) }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }))
+    if (count.has('none') && rooms.length) rooms.push({ id: 'none', name: 'No room', n: count.get('none') })
+    return rooms
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.plants, state.plan.zones])
 
   // "Due first" splits the list: what needs you today, then everything else
   const groups = tripFilter
@@ -201,6 +262,7 @@ export default function Dashboard({ onAdd }) {
   const freshDetail = detailPlant && state.plants.find(p => p.id === detailPlant.id)
   const SortIcon = SORTS[sort].Icon
 
+  const narrowed = filterCount > 0 || !!query.trim()
   const tools = (
     <>
       <h2 className="tools-title">My Plants</h2>
@@ -209,15 +271,87 @@ export default function Dashboard({ onAdd }) {
         <input placeholder="Search" aria-label="Search plants" value={query} onChange={e => setQuery(e.target.value)} />
       </div>
       <div className="section-head-aside">
-        <span className="sub">{state.plants.length} total</span>
-        <button
-          className="chip"
-          aria-label={`Sorted ${SORTS[sort].label} — tap for ${SORTS[SORTS[sort].next].label}`}
-          onClick={() => setSettings({ plantSort: SORTS[sort].next })}
-        >
-          <SortIcon size={14} />
-          {SORTS[sort].label}
-        </button>
+        <span className="sub">{narrowed ? `${plants.length} of ${state.plants.length}` : `${state.plants.length} total`}</span>
+
+        <div className="popover-wrap" ref={filterRef}>
+          <button
+            className={`chip${filterCount ? ' is-active' : ''}`}
+            aria-label={filterCount ? `Filter, ${filterCount} on` : 'Filter'}
+            aria-expanded={menu === 'filter'}
+            onClick={() => setMenu(m => m === 'filter' ? null : 'filter')}
+          >
+            <SlidersHorizontal size={14} />
+            <span className="chip-label">Filter</span>
+            {filterCount > 0 && <span className="chip-count">{filterCount}</span>}
+          </button>
+          {menu === 'filter' && (
+            <div className="popover popover-menu popover-filter" role="dialog" aria-label="Filter plants">
+              <div className="menu-label">Where</div>
+              <div className="seg" role="radiogroup" aria-label="Inside or outside">
+                {Object.entries(WHERE).map(([k, label]) => (
+                  <button
+                    key={k} role="radio" aria-checked={filter.where === k}
+                    className={filter.where === k ? 'is-active' : ''}
+                    onClick={() => setFilter({ where: k })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="menu-label">Room</div>
+              {roomOptions.length === 0 ? (
+                <p className="menu-note">Draw rooms on the Plan and give your plants a room to filter by it.</p>
+              ) : (
+                <div className="filter-rooms" role="radiogroup" aria-label="Room">
+                  {[{ id: null, name: 'All rooms', n: state.plants.length }, ...roomOptions].map(r => (
+                    <button
+                      key={r.id ?? 'all'} role="radio" aria-checked={filter.room === r.id}
+                      className={`chip${filter.room === r.id ? ' is-active' : ''}`}
+                      onClick={() => setFilter({ room: r.id })}
+                    >
+                      {r.name} <span className="chip-n">{r.n}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {filterCount > 0 && (
+                <button className="btn btn-sm btn-soft btn-block menu-clear" onClick={() => setFilter(NO_FILTER)}>
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="popover-wrap" ref={sortRef}>
+          <button
+            className="chip"
+            aria-label={`Sort: ${SORTS[sort].label}`}
+            aria-haspopup="menu" aria-expanded={menu === 'sort'}
+            onClick={() => setMenu(m => m === 'sort' ? null : 'sort')}
+          >
+            <SortIcon size={14} />
+            <span className="chip-label">{SORTS[sort].short || SORTS[sort].label}</span>
+            <ChevronDown size={14} className="chip-caret" />
+          </button>
+          {menu === 'sort' && (
+            <div className="popover popover-menu popover-sort" role="menu" aria-label="Sort plants">
+              {Object.entries(SORTS).map(([k, { label, Icon }]) => (
+                <button
+                  key={k} role="menuitemradio" aria-checked={sort === k}
+                  className={`menu-item${sort === k ? ' is-active' : ''}`}
+                  onClick={() => { setSettings({ plantSort: k }); setMenu(null) }}
+                >
+                  <Icon size={16} />
+                  <span>{label}</span>
+                  {sort === k && <Check size={16} className="menu-check" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </>
   )
@@ -371,9 +505,15 @@ export default function Dashboard({ onAdd }) {
       {plants.length === 0 ? (
         <div className="empty">
           <Sprout className="big" />
-          <h3>{query ? 'No plants match' : 'No plants yet'}</h3>
-          <p>{query ? 'Try a different search.' : 'Add your first plant from the catalogue.'}</p>
-          {!query && onAdd && (
+          <h3>{state.plants.length ? 'No plants match' : 'No plants yet'}</h3>
+          <p>
+            {!state.plants.length ? 'Add your first plant from the catalogue.'
+              : filterCount ? 'Nothing fits these filters.' : 'Try a different search.'}
+          </p>
+          {filterCount > 0 && state.plants.length > 0 && (
+            <button className="btn btn-soft" onClick={() => setFilter(NO_FILTER)}>Clear filters</button>
+          )}
+          {!state.plants.length && onAdd && (
             <button className="btn btn-primary" onClick={onAdd}><Plus size={16} /> Add your first plant</button>
           )}
         </div>

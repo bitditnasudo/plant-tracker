@@ -745,7 +745,8 @@ export function StoreProvider({ children }) {
 
     addPlant: plant => {
       const at = nowIso()
-      patch(s => ({ ...s, plants: [...s.plants, { ...plant, updatedAt: at }] }))
+      // addedAt drives the dashboard's "Newest added" sort
+      patch(s => ({ ...s, plants: [...s.plants, { addedAt: at, ...plant, updatedAt: at }] }))
       // classify after adding — debounced so a batch of additions costs one pass
       clearTimeout(classifyTimer.current)
       classifyTimer.current = setTimeout(() => backfillClassifications(), 3000)
