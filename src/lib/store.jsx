@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { formatISO, subDays } from 'date-fns'
 import { idbSet, idbGet, idbDelete, idbKeys } from './idb.js'
 import { fetchWeather, fetchEt0Climate, WIND_HISTORY_DAYS } from './weather.js'
-import { applyRainAnswer, setWindLog, setEt0Climate } from './schedule.js'
+import { applyRainAnswer, setWindLog, setEt0Climate, learnFromWatering } from './schedule.js'
 import { setCustomCatalog, getCatalogPlant } from './catalog.js'
 import {
   isAuthenticated, signIn, signOut as signOutGoogle,
@@ -570,6 +570,13 @@ export function StoreProvider({ children }) {
             prev.rainDelay = pl.rainDelay ?? false
             prev.lastWateredBy = pl.lastWateredBy ?? null
             prev.dampOn = pl.dampOn ?? null
+            // learn from when it actually needed water — except a watering
+            // ahead of a trip, which is about the calendar, not the soil
+            const learned = source === 'trip' ? null : learnFromWatering(pl, date, s.settings.location?.lat)
+            if (learned !== null) {
+              prev.waterLearn = pl.waterLearn ?? null
+              fields.waterLearn = learned
+            }
             fields.rainDelay = false
             fields.lastWateredBy = 'hand'
             fields.dampOn = null

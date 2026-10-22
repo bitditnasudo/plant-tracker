@@ -365,6 +365,153 @@ export const SprayBottle = wrap('sb', id => (
   </g>
 ))
 
+// The rest of the care kit, drawn the same way as the can and the bottle:
+// cylinder shading, a rim light, a contact shadow, one identifying colour.
+
+// Liquid plant food: a leaf-green bottle with an amber measuring cap and a
+// few golden drops — the cap is the dose, which is what the sources stress.
+export const FeedBottle = wrap('fb', id => (
+  <g>
+    <defs>
+      <linearGradient id={`${id}-body`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#2D6A4F" />
+        <stop offset="0.22" stopColor="#B7E4C7" />
+        <stop offset="0.6" stopColor="#52B788" />
+        <stop offset="1" stopColor="#1B4332" />
+      </linearGradient>
+      <linearGradient id={`${id}-cap`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#C98A12" />
+        <stop offset="0.25" stopColor="#FBE3A0" />
+        <stop offset="0.65" stopColor="#EDB43A" />
+        <stop offset="1" stopColor="#A86F0B" />
+      </linearGradient>
+      <radialGradient id={`${id}-gloss`} cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.75" />
+        <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+
+    <ellipse cx="31" cy="55" rx="12.5" ry="2.8" fill={P.deep} opacity="0.16" />
+
+    {/* measuring cap, ribbed, then the neck */}
+    <path d="M25.4 13.6 Q25.4 11 28 11 L34 11 Q36.6 11 36.6 13.6 L37 20 L25 20 Z" fill={`url(#${id}-cap)`} />
+    {[27.6, 30, 32.4, 34.8].map(x => (
+      <path key={x} d={`M${x} 13 L${x} 18.8`} stroke="#A86F0B" strokeWidth="0.8" strokeLinecap="round" opacity="0.45" />
+    ))}
+    <path d="M26.6 12.6 Q29 11.8 31.6 12" fill="none" stroke="#FFF4D6" strokeWidth="1.1" strokeLinecap="round" opacity="0.8" />
+    <rect x="26.6" y="19.6" width="8.8" height="4.2" rx="1.2" fill="#24573F" />
+
+    {/* bottle */}
+    <path d="M22.6 31 Q22.6 24.6 29 23.6 L33 23.6 Q39.4 24.6 39.4 31 L39.8 49 Q39.8 54 31 54.3 Q22.2 54 22.2 49 Z"
+      fill={`url(#${id}-body)`} />
+    <rect x="24.8" y="33" width="12.4" height="11.4" rx="2.4" fill={P.white} opacity="0.88" />
+    <path d="M31 42 Q26.6 41.4 27 36.2 Q31.6 35.6 32.4 40 Q32.6 41.6 31 42 Z" fill="#40916C" />
+    <path d="M31 42 Q33.4 38.6 35.4 37.4" fill="none" stroke="#2D6A4F" strokeWidth="1" strokeLinecap="round" />
+    <ellipse cx="26.2" cy="47" rx="2" ry="4.6" fill="#FFFFFF" opacity="0.3" />
+    <ellipse cx="28" cy="29.5" rx="6" ry="4.6" fill={`url(#${id}-gloss)`} opacity="0.5" />
+    <path d="M38.4 31.6 Q39.4 41 37.8 50.4" fill="none" stroke="#D8F3DC" strokeWidth="1.4" strokeLinecap="round" opacity="0.45" />
+
+    {/* a few golden drops of feed */}
+    {[[47.5, 30, 2.3], [52.4, 37.6, 1.7], [46.6, 41.6, 1.4]].map(([x, y, r]) => (
+      <path key={y} d={dropPath(x, y, r)} fill="#E9A825" opacity="0.85" />
+    ))}
+  </g>
+))
+
+// Flushing the soil: water poured in at the top runs straight through the
+// pot and out of the drainage hole, carrying the salts with it.
+export const FlushPot = wrap('fp', id => (
+  <g>
+    <defs>
+      <linearGradient id={`${id}-clay`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#B4622B" />
+        <stop offset="0.22" stopColor="#F6C79A" />
+        <stop offset="0.62" stopColor="#DD8A4E" />
+        <stop offset="1" stopColor="#934A1C" />
+      </linearGradient>
+      <linearGradient id={`${id}-rim`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#F8D2AC" />
+        <stop offset="1" stopColor="#C56F34" />
+      </linearGradient>
+      <linearGradient id={`${id}-water`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#CFE7FA" />
+        <stop offset="1" stopColor="#3E86C8" />
+      </linearGradient>
+    </defs>
+
+    <ellipse cx="32" cy="55.6" rx="13" ry="2.6" fill={P.deep} opacity="0.16" />
+
+    {/* the stream going in */}
+    <path d="M14 6.5 Q24 8 28.6 21.5" fill="none" stroke={`url(#${id}-water)`} strokeWidth="3.4" strokeLinecap="round" />
+    <path d="M15.6 7.6 Q23 9.4 27 19" fill="none" stroke="#FFFFFF" strokeWidth="0.9" strokeLinecap="round" opacity="0.7" />
+
+    {/* pot body, rim, and the water standing on the soil */}
+    <path d="M18.4 27 L45.6 27 L41.6 48.6 Q41.2 50.6 38.8 50.6 L25.2 50.6 Q22.8 50.6 22.4 48.6 Z" fill={`url(#${id}-clay)`} />
+    <ellipse cx="25.6" cy="38" rx="1.8" ry="6.6" fill="#FFFFFF" opacity="0.28" />
+    <rect x="16" y="21.6" width="32" height="6.4" rx="2.2" fill={`url(#${id}-rim)`} />
+    <ellipse cx="32" cy="22.6" rx="14" ry="2.6" fill={`url(#${id}-water)`} />
+    <path d="M21.6 22 Q32 20.2 42.4 22" fill="none" stroke="#EAF5FE" strokeWidth="1.1" strokeLinecap="round" opacity="0.8" />
+    <path d="M44.6 29.4 Q44 39 41.4 47.6" fill="none" stroke="#FBE0C4" strokeWidth="1.3" strokeLinecap="round" opacity="0.45" />
+
+    {/* and out through the drainage hole */}
+    <path d="M32 50.6 L32 53.4" stroke="#5BA7E6" strokeWidth="1.6" strokeLinecap="round" />
+    {[[27.4, 58, 1.3], [32, 60, 1.6], [36.6, 58, 1.3]].map(([x, y, r]) => (
+      <path key={x} d={dropPath(x, y, r)} fill="#5BA7E6" opacity="0.85" />
+    ))}
+  </g>
+))
+
+// "Still damp": a soil-moisture meter pushed into dark, wet potting mix,
+// its needle over in the blue — checked, and no water needed yet.
+export const MoistureMeter = wrap('mm', id => (
+  <g>
+    <defs>
+      <linearGradient id={`${id}-clay`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#B4622B" />
+        <stop offset="0.22" stopColor="#F6C79A" />
+        <stop offset="0.62" stopColor="#DD8A4E" />
+        <stop offset="1" stopColor="#934A1C" />
+      </linearGradient>
+      <linearGradient id={`${id}-soil`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#6B4A31" />
+        <stop offset="1" stopColor="#3E2A1B" />
+      </linearGradient>
+      <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#C9DDEE" />
+        <stop offset="1" stopColor="#4F7DA8" />
+      </linearGradient>
+      <linearGradient id={`${id}-rod`} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#7E95A8" />
+        <stop offset="0.4" stopColor="#E4EDF4" />
+        <stop offset="1" stopColor="#6A8296" />
+      </linearGradient>
+    </defs>
+
+    <ellipse cx="32" cy="56.4" rx="13" ry="2.6" fill={P.deep} opacity="0.16" />
+
+    {/* pot with damp, dark soil — a couple of wet glints */}
+    <path d="M18.6 40 L45.4 40 L41.8 52.4 Q41.4 54.2 39 54.2 L25 54.2 Q22.6 54.2 22.2 52.4 Z" fill={`url(#${id}-clay)`} />
+    <ellipse cx="25.4" cy="47" rx="1.6" ry="4.2" fill="#FFFFFF" opacity="0.28" />
+    <rect x="16.4" y="36.2" width="31.2" height="5.6" rx="2" fill="#E9A266" />
+    <ellipse cx="32" cy="37.2" rx="13.6" ry="2.5" fill={`url(#${id}-soil)`} />
+    <ellipse cx="24.8" cy="37" rx="1.8" ry="0.6" fill="#B7D7F2" opacity="0.7" />
+    <ellipse cx="39.6" cy="37.5" rx="1.4" ry="0.5" fill="#B7D7F2" opacity="0.6" />
+
+    {/* probe */}
+    <rect x="30.9" y="25" width="2.2" height="13" rx="1.1" fill={`url(#${id}-rod)`} />
+
+    {/* dial: dry (amber) to wet (blue), needle over in the wet */}
+    <circle cx="32" cy="17" r="10.6" fill={`url(#${id}-metal)`} />
+    <circle cx="32" cy="17" r="8.6" fill={P.white} />
+    <path d="M24.7 19 A7.6 7.6 0 0 1 29 10" fill="none" stroke="#E9A825" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M30.6 9.5 A7.6 7.6 0 0 1 33.4 9.5" fill="none" stroke="#B9CCD9" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M35 10 A7.6 7.6 0 0 1 39.3 19" fill="none" stroke="#3E86C8" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M32 18 L37.2 12.6" stroke="#1F3A52" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="32" cy="18" r="1.6" fill="#1F3A52" />
+    <path d="M24.8 11.4 Q28 7.6 32.6 7.4" fill="none" stroke="#FFFFFF" strokeWidth="1" strokeLinecap="round" opacity="0.7" />
+  </g>
+))
+
 /* ── Care badges ───────────────────────────────────────────────────────────
    The two species traits a plant card states at a glance: how thirsty the
    plant is (one to three drops) and how much sun it wants. These follow the

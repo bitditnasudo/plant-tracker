@@ -173,7 +173,7 @@ export function TripCard({ docked = false }) {
               : ` — water ${ids.length === 1 ? 'it' : 'them'} the day before you leave (${fmt(formatISO(parseISO(trip.from).getTime() - 864e5, { representation: 'date' }))}).`}
           </span>
           {daysToGo <= 1 && (
-            <button className="btn btn-sm btn-primary" onClick={() => logCare(ids, 'water')}>
+            <button className="btn btn-sm btn-primary" onClick={() => logCare(ids, 'water', { source: 'trip' })}>
               <WateringCan className="art-sm" /> Water all now
             </button>
           )}

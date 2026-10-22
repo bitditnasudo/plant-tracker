@@ -246,12 +246,49 @@ export function potCappedBase(plant, latitude) {
   return Math.min(base, cap)
 }
 
+/* ── Learning from the soil checks ───────────────────────────────────────
+ * The species figures are generic; your pots, mix and rooms are not. Each
+ * hand watering compares how long the plant actually went with the interval
+ * the app had scheduled, and moves a per-plant factor halfway towards it:
+ *   watered early (it was dry before the check) → shorter from now on;
+ *   watered late AFTER a "still damp" check     → longer from now on.
+ * Being late with no damp check proves nothing (the reminder may simply have
+ * been ignored), so it never lengthens the interval. Each watering moves the
+ * factor at most a third, and it stays within half to double the model. */
+export const LEARN = { rate: 0.5, stepMin: 0.75, stepMax: 4 / 3, min: 0.5, max: 2, deadband: 0.1 }
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
+
+export function learnedFactor(plant) {
+  const f = plant.waterLearn
+  return typeof f === 'number' && f > 0 ? clamp(f, LEARN.min, LEARN.max) : 1
+}
+
+// Interval from the weather, pot and wind model alone, before learning.
+export function modelledIntervalDays(plant, latitude) {
+  const base = potCappedBase(plant, latitude)
+  const { cut } = windAdjustment(plant)
+  return base * (1 - cut)
+}
+
 export function waterIntervalDays(plant, latitude) {
   // a manual override always wins — the user's own observation beats the model
   if (plant.intervalOverride > 0) return Math.max(1, Math.round(plant.intervalOverride))
-  const base = potCappedBase(plant, latitude)
-  const { cut } = windAdjustment(plant)
-  return Math.max(1, Math.round(base * (1 - cut)))
+  return Math.max(1, Math.round(modelledIntervalDays(plant, latitude) * learnedFactor(plant)))
+}
+
+// The new factor after a hand watering on `date`, or null for no change.
+export function learnFromWatering(plant, date, latitude) {
+  if (plant.intervalOverride > 0 || !plant.lastWatered || !date) return null
+  const observed = differenceInCalendarDays(parseISO(date), parseISO(plant.lastWatered))
+  if (observed < 1) return null
+  let ratio = observed / waterIntervalDays(plant, latitude)
+  const checkedDamp = !!plant.dampOn && plant.dampOn >= plant.lastWatered
+  if (ratio > 1 && !checkedDamp) ratio = 1
+  if (Math.abs(ratio - 1) < LEARN.deadband) return null
+  const step = clamp(1 + LEARN.rate * (ratio - 1), LEARN.stepMin, LEARN.stepMax)
+  const next = clamp(learnedFactor(plant) * step, LEARN.min, LEARN.max)
+  return Math.round(next * 1000) / 1000
 }
 
 // For the UI: how the effective interval was arrived at.
@@ -269,6 +306,8 @@ export function intervalBreakdown(plant, latitude) {
     capApplied: capped < base,
     wind,
     modelled: Math.max(1, Math.round(capped * (1 - wind.cut))),
+    learned: learnedFactor(plant),
+    learnedDays: Math.max(1, Math.round(modelledIntervalDays(plant, latitude) * learnedFactor(plant))),
     override: plant.intervalOverride > 0 ? Math.max(1, Math.round(plant.intervalOverride)) : null,
     effective: waterIntervalDays(plant, latitude),
   }

@@ -79,6 +79,16 @@ to check: reminders, cards and the care sheet say so, and "Still damp — check
 tomorrow" (on the care sheet, or the clock button in the bell's Water tab)
 pushes the check a day without logging a watering.
 
+**Each plant learns its own interval.** The species figures are generic;
+your pots, mix and rooms are not. Every hand watering compares how long the
+plant actually went with what was scheduled and moves a per-plant factor
+halfway towards it: watering early (already dry) shortens the next interval,
+watering late after a "still damp" check lengthens it. Late with no damp
+check proves nothing and changes nothing, a watering from the trip card
+doesn't count, one watering moves it at most a third, and it stays within
+half to double the model. The care sheet's watering model shows the factor
+and can forget it; a manual override switches learning off.
+
 **Summer or winter is decided by the weather, not the month.** Each species
 has a summer and a winter interval (bundled catalogue figures, or Perenual's
 `watering_general_benchmark` for imports — neither is cited per species).

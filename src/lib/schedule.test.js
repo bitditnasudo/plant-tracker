@@ -4,6 +4,7 @@ import {
   isGrowingSeason, potCappedBase, waterIntervalDays, waterDaysLeft,
   pendingRain, needsRainAnswer, applyRainAnswer, RAIN_OUTCOME, tripNeed,
   setEt0Climate, recentEt0, dryingFactor, baseIntervalDays, intervalBreakdown,
+  learnFromWatering, learnedFactor, LEARN,
 } from './schedule.js'
 import { reminderStart } from './calendarSync.js'
 
@@ -149,6 +150,55 @@ describe('soil check', () => {
 
   it('a damp check from before the last watering is ignored', () => {
     expect(waterDaysLeft(plant({ lastWatered: TODAY, dampOn: '2026-07-10' }), 40)).toBe(7)
+  })
+})
+
+describe('learning from soil checks', () => {
+  // monstera in July with no climate data: 7-day interval
+  it('watering early (already dry) shortens the next interval', () => {
+    const p = plant({ lastWatered: '2026-07-10' }) // watered again on day 5 of 7
+    const f = learnFromWatering(p, TODAY, 40)
+    expect(f).toBeCloseTo(1 + 0.5 * (5 / 7 - 1), 3)
+    expect(waterIntervalDays({ ...p, waterLearn: f }, 40)).toBe(6)
+  })
+
+  it('watering late after a "still damp" check lengthens it', () => {
+    const p = plant({ lastWatered: '2026-07-05', dampOn: '2026-07-14' }) // 10 days, damp at day 9
+    const f = learnFromWatering(p, TODAY, 40)
+    expect(f).toBeCloseTo(1 + 0.5 * (10 / 7 - 1), 3)
+    expect(waterIntervalDays({ ...p, waterLearn: f }, 40)).toBe(8)
+  })
+
+  it('late without a damp check proves nothing', () => {
+    expect(learnFromWatering(plant({ lastWatered: '2026-07-01' }), TODAY, 40)).toBeNull()
+  })
+
+  it('on time (within the dead band) changes nothing', () => {
+    expect(learnFromWatering(plant({ lastWatered: '2026-07-08' }), TODAY, 40)).toBeNull()
+  })
+
+  it('a damp check from before the last watering does not count', () => {
+    expect(learnFromWatering(plant({ lastWatered: '2026-07-01', dampOn: '2026-06-28' }), TODAY, 40)).toBeNull()
+  })
+
+  it('one watering moves it at most a third, and it stays within half to double', () => {
+    const p = plant({ lastWatered: '2026-06-01', dampOn: '2026-07-14' }) // 44 days
+    expect(learnFromWatering(p, TODAY, 40)).toBeCloseTo(LEARN.stepMax, 3)
+    expect(learnFromWatering({ ...p, waterLearn: 1.9 }, TODAY, 40)).toBe(2)
+    expect(learnFromWatering(plant({ lastWatered: '2026-07-14', waterLearn: 0.55 }), TODAY, 40)).toBe(0.5)
+    expect(learnedFactor({ waterLearn: 9 })).toBe(2)
+  })
+
+  it('a manual override switches learning off', () => {
+    expect(learnFromWatering(plant({ lastWatered: '2026-07-10', intervalOverride: 7 }), TODAY, 40)).toBeNull()
+  })
+
+  it('the breakdown reports the learned interval', () => {
+    const b = intervalBreakdown(plant({ waterLearn: 1.5 }), 40)
+    expect(b.modelled).toBe(7)
+    expect(b.learned).toBe(1.5)
+    expect(b.learnedDays).toBe(11)
+    expect(b.effective).toBe(11)
   })
 })
 

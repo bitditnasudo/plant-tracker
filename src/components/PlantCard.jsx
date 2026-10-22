@@ -1,9 +1,9 @@
-import { CloudRain, Sparkles } from 'lucide-react'
+import { CloudRain } from 'lucide-react'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { useStore } from '../lib/store.jsx'
 import { getCatalogPlant, LIGHT_LABELS, WATER_NEED_LABELS, waterNeedLevel } from '../lib/catalog.js'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, daysLeftLabel, needsRainAnswer } from '../lib/schedule.js'
-import { PlantIcon, WateringCan, SprayBottle, WaterNeedIcon, LightIcon } from './PlantIcons.jsx'
+import { PlantIcon, WateringCan, SprayBottle, FeedBottle, WaterNeedIcon, LightIcon } from './PlantIcons.jsx'
 
 function agoLabel(iso) {
   if (!iso) return 'Never'
@@ -128,7 +128,7 @@ export function PlantCard({ plant, onOpen, onRain, trip }) {
             className="action-sq action-sq-feed" title="Mark fed" aria-label={`Mark ${name} fed`}
             onClick={e => { e.stopPropagation(); markFertilized(plant.id) }}
           >
-            <Sparkles size={22} />
+            <FeedBottle />
           </button>
         )}
       </div>

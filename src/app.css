@@ -309,9 +309,6 @@
 .n-log:hover  { background: #fff; }
 .n-log:active { transform: scale(.88); }
 .n-log svg { width: 28px; height: 28px; }
-/* the feed action has no 3-D drawing; a brand-tinted line icon, a size down */
-.n-log-feed { color: var(--brand); }
-.n-log-feed svg { width: 20px; height: 20px; }
 /* a combo half already logged: ticked and inert until the other half is done */
 .n-log.is-done { color: var(--brand); opacity: .6; cursor: default; }
 .n-log.is-done:active { transform: none; }

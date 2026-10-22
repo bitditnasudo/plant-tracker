@@ -1,12 +1,12 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { Search, Bell, Sparkles, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, Waves, Clock3, CalendarPlus, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { Search, Bell, Check, ArrowDownAZ, ArrowDownZA, AlarmClock, Plus, CalendarPlus, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { useStore } from '../lib/store.jsx'
 import { waterDaysLeft, mistDaysLeft, fertilizeDaysLeft, flushDaysLeft, needsRainAnswer, pendingRain, rainWhen } from '../lib/schedule.js'
 import { getCatalogPlant } from '../lib/catalog.js'
 import { PlantCard } from '../components/PlantCard.jsx'
 import { RainModal } from '../components/RainModal.jsx'
 import { PlantDetailModal } from '../components/PlantDetailModal.jsx'
-import { Avatar, Sprout, WateringCan, SprayBottle } from '../components/PlantIcons.jsx'
+import { Avatar, Sprout, WateringCan, SprayBottle, FeedBottle, FlushPot, MoistureMeter } from '../components/PlantIcons.jsx'
 import { WeatherCard, TripCard, useTripNeeds } from '../components/DashWidgets.jsx'
 
 // Desktop layout (the sidebar breakpoint): the list tools move into the header.
@@ -128,8 +128,8 @@ export default function Dashboard({ onAdd }) {
     { key: 'combo', label: 'Combo', items: dueCombo, Art: null,        type: null,    verb: 'combo' },
     { key: 'water', label: 'Water', items: dueWater, Art: WateringCan, type: 'water', verb: 'watering' },
     { key: 'mist',  label: 'Mist',  items: dueMist,  Art: SprayBottle, type: 'mist',  verb: 'misting' },
-    { key: 'feed',  label: 'Feed',  items: dueFeed,  Art: null,        type: 'feed',  verb: 'feeding' },
-    { key: 'flush', label: 'Flush', items: dueFlush, Art: null,        type: 'flush', verb: 'soil flush', Icon: Waves },
+    { key: 'feed',  label: 'Feed',  items: dueFeed,  Art: FeedBottle,  type: 'feed',  verb: 'feeding' },
+    { key: 'flush', label: 'Flush', items: dueFlush, Art: FlushPot,    type: 'flush', verb: 'soil flush' },
     { key: 'rain',  label: 'Rain',  items: dueRain,  Art: null,        type: null,    verb: 'rain' },
   ], [dueCombo, dueWater, dueMist, dueFeed, dueFlush, dueRain])
 
@@ -454,35 +454,35 @@ export default function Dashboard({ onAdd }) {
                             {waterDone ? <Check /> : <WateringCan />}
                           </button>
                           <button
-                            className={`n-log n-log-feed${feedDone ? ' is-done' : ''}`}
+                            className={`n-log${feedDone ? ' is-done' : ''}`}
                             aria-label={`Log feeding for ${plant.nickname || cat?.name}`}
                             title={feedDone ? 'Fed' : 'Log feeding'}
                             disabled={feedDone}
                             onClick={e => { e.stopPropagation(); pinCombo(plant.id); logCare([plant.id], 'feed') }}
                           >
-                            {feedDone ? <Check /> : <Sparkles />}
+                            {feedDone ? <Check /> : <FeedBottle />}
                           </button>
                         </>
                       )}
                       {/* a soil check can end in "not yet": snooze to tomorrow, no watering logged */}
                       {activeTab.key === 'water' && (
                         <button
-                          className="n-log n-log-feed"
+                          className="n-log"
                           aria-label={`Still damp: check ${plant.nickname || cat?.name} again tomorrow`}
                           title="Still damp — check tomorrow"
                           onClick={e => { e.stopPropagation(); markStillDamp(plant.id) }}
                         >
-                          <Clock3 />
+                          <MoistureMeter />
                         </button>
                       )}
                       {activeTab.type && (
                         <button
-                          className={`n-log${activeTab.Art ? '' : ' n-log-feed'}`}
+                          className="n-log"
                           aria-label={`Log ${activeTab.verb} for ${plant.nickname || cat?.name}`}
                           title={`Log ${activeTab.verb}`}
                           onClick={e => { e.stopPropagation(); logCare([plant.id], activeTab.type) }}
                         >
-                          {activeTab.Art ? <activeTab.Art /> : activeTab.Icon ? <activeTab.Icon /> : <Sparkles />}
+                          <activeTab.Art />
                         </button>
                       )}
                     </div>

@@ -10,7 +10,7 @@ import {
 import { SOURCES, FLUSH, feedScheduleLabel, winterNote } from '../lib/feeding.js'
 import { generatePlantIcon } from '../lib/gemini.js'
 import { resizeImage } from '../lib/image.js'
-import { PlantIcon, WateringCan, SprayBottle } from './PlantIcons.jsx'
+import { PlantIcon, WateringCan, SprayBottle, FeedBottle, FlushPot, MoistureMeter } from './PlantIcons.jsx'
 import { ZonePicker } from './ZonePicker.jsx'
 import { dliToLux, fmtLux, judge, lightAt, needLux, parseLight } from '../lib/plantLight.js'
 import { Sheet } from './Sheet.jsx'
@@ -219,10 +219,10 @@ export function PlantDetailModal({ plant, onClose }) {
             />
           )}
           <CareRow
-            icon={<Sparkles size={18} />} left={feed.left}
+            icon={<FeedBottle className="art-md" />} left={feed.left}
             next={feed.resting ? `resting until ${format(feed.next, 'd MMM')}` : null}
             title={<>Feed <b>{feedScheduleLabel(feed.rule, lat)}</b></>}
-            action={{ icon: <Sparkles size={15} />, due: 'Feed now', idle: 'Log feed' }}
+            action={{ icon: <FeedBottle className="art-sm" />, due: 'Feed now', idle: 'Log feed' }}
             onLog={() => markFertilized(plant.id)}
           >
             <small className="feed-why">
@@ -235,10 +235,10 @@ export function PlantDetailModal({ plant, onClose }) {
             </small>
           </CareRow>
           <CareRow
-            icon={<Waves size={18} />} left={flush.left}
+            icon={<FlushPot className="art-md" />} left={flush.left}
             next={flush.resting ? `waits until ${format(flush.next, 'd MMM')} (too cold to soak a cactus)` : null}
             title={<>Flush the soil every <b>{flush.days} days</b></>}
-            action={{ icon: <Waves size={15} />, due: 'Flush now', idle: 'Log flush' }}
+            action={{ icon: <FlushPot className="art-sm" />, due: 'Flush now', idle: 'Log flush' }}
             onLog={() => markFlushed(plant.id)}
           >
             <small className="feed-why">
@@ -397,6 +397,10 @@ export function PlantDetailModal({ plant, onClose }) {
                     {' '}({b.wind.tier.label}) × {WIND_SENSITIVITY[b.wind.sensitivity].label.toLowerCase()} sensitivity
                     {' '}→ <b>−{Math.round(b.wind.cut * 100)}%</b> → {b.modelled} days</>
                 )}
+                {b.learned !== 1 && (
+                  <> · your soil checks show this pot drying <b>{b.learned > 1 ? 'slower' : 'faster'}</b> than modelled
+                    {' '}(×{b.learned.toFixed(2)}) → <b>{b.learnedDays} days</b></>
+                )}
                 {b.override && <> · <b>your override of {b.override} days wins</b></>}
               </div>
             </div>
@@ -433,7 +437,7 @@ export function PlantDetailModal({ plant, onClose }) {
               <div className="inline-actions">
                 <input
                   type="number" min="1" max="120" inputMode="numeric"
-                  placeholder={`auto — ${b.modelled} days`}
+                  placeholder={`auto — ${b.learnedDays} days`}
                   value={plant.intervalOverride || ''}
                   onChange={e => {
                     const v = e.target.value
@@ -448,6 +452,21 @@ export function PlantDetailModal({ plant, onClose }) {
               </div>
               <p className="field-note">
                 Your own observation of the plant beats the model — this wins over wind and sensitivity both.
+              </p>
+            </div>
+
+            <div className="field">
+              <label>Learned from your soil checks</label>
+              <p className="field-note">
+                Water early because it was already dry and the next interval gets shorter; find it
+                {' '}“still damp” and water later and it gets longer. Each watering moves it part of the way,
+                {' '}never past half or double the model, and a watering before a trip doesn’t count.
+                {' '}{b.learned === 1
+                  ? <>Nothing learned yet for this plant.</>
+                  : <>Right now: <b>×{b.learned.toFixed(2)}</b>.{' '}
+                    <button type="button" className="link-brand link-btn" onClick={() => updatePlant(plant.id, { waterLearn: null })}>
+                      Forget it
+                    </button></>}
               </p>
             </div>
           </details>
