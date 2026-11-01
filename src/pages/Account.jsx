@@ -11,6 +11,7 @@ import { ConfirmSheet, Sheet } from '../components/Sheet.jsx'
 /* The critter used to be inlined here and in Budget's own copy, and the two had
    already drifted in how the caption was styled. One copy, in the kit. */
 import { Signature } from '../components/Signature.jsx'
+import { CareGuide } from '../components/CareGuide.jsx'
 
 const timeLabel = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6) // 06:00 … 22:00
@@ -350,6 +351,17 @@ export default function Account() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <div className="list-row">
+          <div className="row-icon"><Info size={18} /></div>
+          <div className="grow">
+            Watering and wind
+            <small>How the app works out when each plant needs water, food and a flush.</small>
+          </div>
+        </div>
+        <CareGuide />
       </div>
 
       <div className="card">
