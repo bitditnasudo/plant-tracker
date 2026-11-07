@@ -22,6 +22,38 @@ function useWide() {
   return wide
 }
 
+// Today's local date, kept current. The due lists are worked out in whole
+// calendar days, but React only recalculates them when something else
+// changes, so a plant that came due at midnight used to appear whenever the
+// next weather refresh happened to land. This re-renders at midnight, and when
+// the app is reopened (or a sleeping device wakes) on a new day.
+const localDay = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+function useToday() {
+  const [day, setDay] = useState(localDay)
+  useEffect(() => {
+    let t
+    const check = () => setDay(localDay())
+    const arm = () => {
+      const now = new Date()
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1)
+      t = setTimeout(() => { check(); arm() }, next - now)
+    }
+    arm()
+    const onShow = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onShow)
+    window.addEventListener('focus', check)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('visibilitychange', onShow)
+      window.removeEventListener('focus', check)
+    }
+  }, [])
+  return day
+}
+
 const dueLabel = left => left < 0 ? `${-left} day${left === -1 ? '' : 's'} overdue` : 'Due today'
 
 const SORTS = {
@@ -61,6 +93,7 @@ export default function Dashboard({ onAdd }) {
   const filterCount = (filter.where !== 'all') + (filter.room !== null)
   const setFilter = f => setSettings({ plantFilter: { ...filter, ...f } })
   const wide = useWide()
+  const today = useToday()
   const lat = state.settings.location?.lat
 
   // what's actually due today, straight from the schedule
@@ -119,7 +152,7 @@ export default function Dashboard({ onAdd }) {
     }
   // windLog / et0Climate: the schedule module reads them, so a weather or
   // climate update must recompute what's due even when no plant changed
-  }, [state.plants, lat, weather, windLog, et0Climate, comboPins])
+  }, [state.plants, lat, weather, windLog, et0Climate, comboPins, today])
 
   const tripNeeds = useTripNeeds()
   const tripFilter = tripOpen && tripNeeds.size > 0

@@ -34,6 +34,15 @@ describe('wind', () => {
     expect(avgWindSince('2026-07-12')).toBe(15)
   })
 
+  it("ignores today's forecast, so the interval can't change during the day", () => {
+    const log = { '2026-07-13': { max: 10 }, '2026-07-14': { max: 10 } }
+    setWindLog({ ...log, [TODAY]: { max: 5 } })
+    const morning = avgWindSince('2026-07-12')
+    setWindLog({ ...log, [TODAY]: { max: 90 } }) // afternoon re-fetch, stormier forecast
+    expect(avgWindSince('2026-07-12')).toBe(morning)
+    expect(morning).toBe(10)
+  })
+
   it('a plant watered today falls back to measured days, never the forecast', () => {
     setWindLog({
       '2026-07-12': { max: 10 }, '2026-07-13': { max: 10 }, '2026-07-14': { max: 10 },

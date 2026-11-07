@@ -68,7 +68,11 @@ export const DORMANT_CAP_MULTIPLIER = 2 // evaporation collapses out of season
 let windLog = {}
 export function setWindLog(log) { windLog = log || {} }
 
-// Average wind (km/h) over the days since `sinceISO`, exclusive of that day.
+// Average wind (km/h) over the measured days since `sinceISO`, exclusive of
+// that day and of today. Today's figure is a forecast that is re-fetched every
+// half hour; counting it let a plant's interval shrink mid-afternoon, so it
+// popped into the to-water list hours after the day began. Measured days only
+// change once a day, so a plant's due day is settled when the day starts.
 // Returns null when we have no usable data — callers then skip the adjustment.
 export function avgWindSince(sinceISO) {
   const days = Object.keys(windLog).sort()
@@ -77,7 +81,7 @@ export function avgWindSince(sinceISO) {
   const from = sinceISO || formatISO(subDays(new Date(), WIND_FALLBACK_WINDOW), { representation: 'date' })
 
   const pick = d => windLog[d]?.[WIND_DAILY_METRIC]
-  let vals = days.filter(d => d > from && d <= today).map(pick).filter(v => typeof v === 'number')
+  let vals = days.filter(d => d > from && d < today).map(pick).filter(v => typeof v === 'number')
   // watered today (empty window) or history doesn't reach back that far
   // (measured days only — the log also holds today's and tomorrow's forecast)
   if (!vals.length) vals = days.filter(d => d < today).slice(-3).map(pick).filter(v => typeof v === 'number')
